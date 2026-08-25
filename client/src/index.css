@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply text-slate-100 antialiased font-sans min-h-screen selection:bg-sky-500 selection:text-white;
+    background-color: #050e1d;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(14, 116, 144, 0.35) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(37, 99, 235, 0.3) 0px, transparent 50%),
+      radial-gradient(at 50% 50%, rgba(2, 132, 199, 0.15) 0px, transparent 65%),
+      radial-gradient(at 0% 100%, rgba(3, 105, 161, 0.25) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(30, 58, 138, 0.35) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+}
+
+/* Floating Animations for Onions, Garlic, Potatoes */
+@keyframes floatAround {
+  0% {
+    transform: translateY(0px) rotate(0deg) scale(1);
+  }
+  25% {
+    transform: translateY(-20px) translateX(12px) rotate(8deg) scale(1.05);
+  }
+  50% {
+    transform: translateY(-38px) translateX(-8px) rotate(-6deg) scale(1);
+  }
+  75% {
+    transform: translateY(-16px) translateX(-18px) rotate(4deg) scale(0.96);
+  }
+  100% {
+    transform: translateY(0px) rotate(0deg) scale(1);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.08);
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(11, 25, 46, 0.8);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.7);
+}
+
+.glass-card {
+  background: rgba(11, 27, 53, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.45);
+}
+
+.glass-card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card-hover:hover {
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 16px 36px -4px rgba(2, 132, 199, 0.28);
+  transform: translateY(-3px);
+}
+
+.glow-blue {
+  box-shadow: 0 0 25px -2px rgba(56, 189, 248, 0.35);
+}
+
+.glow-amber {
+  box-shadow: 0 0 25px -2px rgba(245, 158, 11, 0.35);
+}

@@ -1,0 +1,27 @@
+{
+  "name": "onion-market-poster-app",
+  "version": "1.0.0",
+  "description": "Onion Market Report to Branded PNG Generator for WhatsApp Groups & Mandi Traders",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "npm --prefix server run dev",
+    "client": "npm --prefix client run dev",
+    "test": "npm --prefix server run test",
+    "build": "npm --prefix server run build && npm --prefix client run build"
+  },
+  "keywords": [
+    "onion-market",
+    "apmc",
+    "mandi",
+    "sharp",
+    "poster-generator"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}
