@@ -5,6 +5,7 @@ import { MarketReportNormalized, ShopSettings } from '../../../../shared/types';
 import { v4 as uuidv4 } from 'uuid';
 import { ASSETS_DIR as SERVER_ASSETS_DIR, PUBLIC_DIR as SERVER_PUBLIC_DIR } from '../../paths';
 import { warmTextMetrics, widthOf, fitSize, truncateToWidth } from './textMetrics';
+import { renderIcon, commodityIconName, weatherIconName } from './icons';
 
 const PUBLIC_DIR = SERVER_PUBLIC_DIR;
 const POSTERS_DIR = path.join(PUBLIC_DIR, 'posters');
@@ -172,27 +173,10 @@ function getDayName(isoDate: string | null | undefined): string {
   }
 }
 
-function getCommodityIcon(name: string): string {
-  const n = name.toUpperCase();
-  if (n.includes('ONION') || n.includes('EB') || n.includes('BIG') || n.includes('GOLTA') || n.includes('CHOPDA') || n.includes('MUKKAL') || n.includes('MEDIUM')) return '🧅';
-  if (n.includes('POTATO') || n.includes('AALU') || n.includes('ALOO')) return '🥔';
-  if (n.includes('GARLIC') || n.includes('LEHSUN') || n.includes('BELLULLI')) return '🧄';
-  if (n.includes('GINGER') || n.includes('ADRAK') || n.includes('SHUNTHI')) return '🫚';
-  if (n.includes('TOMATO')) return '🍅';
-  if (n.includes('CHILLI') || n.includes('MIRCHI')) return '🌶️';
-  if (n.includes('LEMON') || n.includes('NIMBU')) return '🍋';
-  if (n.includes('CARROT') || n.includes('GAJAR')) return '🥕';
-  if (n.includes('CABBAGE')) return '🥬';
-  return '📦';
-}
-
-function getWeatherIcon(text: string): string {
-  const t = text.toLowerCase();
-  if (t.includes('rain') || t.includes('storm')) return '🌧️';
-  if (t.includes('sun') || t.includes('clear') || t.includes('hot')) return '☀️';
-  if (t.includes('cold') || t.includes('cool')) return '❄️';
-  return '☁️';
-}
+// Icon selection lives in ./icons — these now return icon *keys* (e.g. 'onion'),
+// not emoji characters, and are drawn as inline SVG via renderIcon().
+const getCommodityIcon = commodityIconName;
+const getWeatherIcon = weatherIconName;
 
 function getInitials(name: string): string {
   const words = name.split(/\s+/).filter(w => /[A-Za-z]/.test(w));
@@ -273,7 +257,7 @@ function heritageRow(x: number, y: number, width: number, height: number, icon: 
     <g transform="translate(${x}, ${y})">
       <rect x="0" y="0" width="${width}" height="${height}" fill="${rowBg}" />
       <rect x="7" y="7" width="${iconBoxSize}" height="${iconBoxSize}" rx="8" fill="rgba(15,23,42,0.06)" />
-      <text x="${7 + iconBoxSize / 2}" y="${7 + iconBoxSize / 2 + 9}" font-family="'Segoe UI Emoji','Apple Color Emoji',Arial,sans-serif" font-size="${Math.min(26, iconBoxSize - 6)}" text-anchor="middle">${icon}</text>
+      ${renderIcon(icon, 7 + (iconBoxSize - Math.min(26, iconBoxSize - 6)) / 2, 7 + (iconBoxSize - Math.min(26, iconBoxSize - 6)) / 2, Math.min(26, iconBoxSize - 6))}
       <text x="${labelStartX}" y="${subText ? height / 2 - 5 : height / 2 + 10}" font-family="${FONT_TABLE}" font-size="${labelFontSize}" font-weight="700" fill="${LABEL_TEXT_COLOR}" letter-spacing="0.2">${escapeXml(labelText)}</text>
       ${subText ? `<text x="${labelStartX}" y="${height / 2 + 19}" font-family="${FONT_TABLE}" font-size="${subFontSize}" font-weight="700" fill="#475569">${escapeXml(subText)}</text>` : ''}
       <line x1="${dividerX}" y1="8" x2="${dividerX}" y2="${height - 8}" stroke="rgba(15,23,42,0.15)" stroke-width="1.5" />
@@ -286,15 +270,19 @@ function heritageRow(x: number, y: number, width: number, height: number, icon: 
 
 function sectionHeader(x: number, y: number, width: number, height: number, color: string, title: string, icon: string): string {
   const baseSize = width > 400 ? 31 : 24;
-  const availW = width - 18 - 16;
-  const full = `${icon} ${title}`;
-  const size = fitSize(full, FONT_HEADING, 400, baseSize, 18, availW);
-  const text = truncateToWidth(full, FONT_HEADING, 400, size, availW);
+  // The icon is drawn as vector art rather than measured as a glyph, so it
+  // claims a fixed gutter and the title is fitted to whatever is left.
+  const iconSize = Math.min(32, height - 12);
+  const titleX = 18 + iconSize + 10;
+  const availW = width - titleX - 16;
+  const size = fitSize(title, FONT_HEADING, 400, baseSize, 18, availW);
+  const text = truncateToWidth(title, FONT_HEADING, 400, size, availW);
   return `
     <g transform="translate(${x}, ${y})">
       <rect x="0" y="0" width="${width}" height="${height}" rx="12" fill="${color}" />
       <rect x="0" y="${height / 2}" width="${width}" height="${height / 2}" fill="${color}" />
-      <text x="18" y="${height / 2 + 10}" font-family="${FONT_HEADING}" font-size="${size}" font-weight="400" fill="#ffffff" letter-spacing="0.1">${escapeXml(text)}</text>
+      ${renderIcon(icon, 18, (height - iconSize) / 2, iconSize, '#ffffff')}
+      <text x="${titleX}" y="${height / 2 + 10}" font-family="${FONT_HEADING}" font-size="${size}" font-weight="400" fill="#ffffff" letter-spacing="0.1">${escapeXml(text)}</text>
     </g>
   `;
 }
@@ -321,14 +309,14 @@ export class PosterGenerator {
     // 1. Maharashtra onion rates, collected dynamically from the parsed message
     const mhItems: { label: string; rate: string; icon: string }[] = [];
     const mh = report.maharashtra;
-    if (mh.extraBig?.display) mhItems.push({ label: 'EXTRA BIG (EB)', rate: mh.extraBig.display, icon: '🧅' });
-    if (mh.big?.display) mhItems.push({ label: 'BIG QUALITY', rate: mh.big.display, icon: '🧅' });
-    if (mh.mukkal?.display) mhItems.push({ label: 'MUKKAL (3/4)', rate: mh.mukkal.display, icon: '🧅' });
-    if (mh.medium?.display) mhItems.push({ label: 'MEDIUM (MED)', rate: mh.medium.display, icon: '🧅' });
-    if (mh.golta?.display) mhItems.push({ label: 'GOLTA ONION', rate: mh.golta.display, icon: '🧅' });
-    if (mh.golty?.display) mhItems.push({ label: 'GOLTY ONION', rate: mh.golty.display, icon: '🧅' });
-    if (mh.chopda?.display) mhItems.push({ label: 'CHOPDA', rate: mh.chopda.display, icon: '🧅' });
-    if (mh.averageQuality?.display) mhItems.push({ label: 'AVERAGE QUALITY', rate: mh.averageQuality.display, icon: '🧅' });
+    if (mh.extraBig?.display) mhItems.push({ label: 'EXTRA BIG (EB)', rate: mh.extraBig.display, icon: 'onion' });
+    if (mh.big?.display) mhItems.push({ label: 'BIG QUALITY', rate: mh.big.display, icon: 'onion' });
+    if (mh.mukkal?.display) mhItems.push({ label: 'MUKKAL (3/4)', rate: mh.mukkal.display, icon: 'onion' });
+    if (mh.medium?.display) mhItems.push({ label: 'MEDIUM (MED)', rate: mh.medium.display, icon: 'onion' });
+    if (mh.golta?.display) mhItems.push({ label: 'GOLTA ONION', rate: mh.golta.display, icon: 'onion' });
+    if (mh.golty?.display) mhItems.push({ label: 'GOLTY ONION', rate: mh.golty.display, icon: 'onion' });
+    if (mh.chopda?.display) mhItems.push({ label: 'CHOPDA', rate: mh.chopda.display, icon: 'onion' });
+    if (mh.averageQuality?.display) mhItems.push({ label: 'AVERAGE QUALITY', rate: mh.averageQuality.display, icon: 'onion' });
 
     const commodities = (report.commodities || []).filter(c => c.name && (c.rate?.display || c.variety));
     const hasMhRates = mhItems.length > 0;
@@ -337,13 +325,18 @@ export class PosterGenerator {
     const hasCommodities = commodities.length > 0;
 
     if (!hasMhRates && !hasVJ && !hasNewOnion && !hasCommodities) {
-      mhItems.push({ label: 'REGULAR ONION', rate: '4000-4200', icon: '🧅' });
+      mhItems.push({ label: 'REGULAR ONION', rate: '4000-4200', icon: 'onion' });
     }
 
     const weatherText = report.weather || 'Normal';
-    const salesText = report.salesStatus || 'Steady';
+    // Same doubling guard as truckCount below: the label prepends "SALES", and
+    // stored reports often already lead with it ("Sales slow" -> "SALES SALES SLOW").
+    const salesText = (report.salesStatus || 'Steady').replace(/^\s*sales\s+/i, '').trim() || 'Steady';
     const arrivalsDisplay = report.totalArrivals?.display || '65,000+ bags';
-    const trucksDisplay = report.truckCount ? `${report.truckCount} Trucks` : '325+ Trucks';
+    // Tolerate a truckCount that already carries its unit ("325+ Trucks"), which
+    // older stored reports have — otherwise the appended word doubles up.
+    const truckCountBare = report.truckCount?.replace(/\s*(?:trucks?|lorr(?:y|ies))\s*$/i, '').trim();
+    const trucksDisplay = truckCountBare ? `${truckCountBare} Trucks` : '325+ Trucks';
 
     const shopNameUpperEarly = settings.shopName.toUpperCase();
     const taglineUpperEarly = (settings.footerTagline || 'Onion Wholesale Merchants').toUpperCase();
@@ -367,18 +360,18 @@ export class PosterGenerator {
         report.newOnions?.lotRate?.display || '',
       ].map(t => ({ text: t, family: FONT_HEADING, weight: 400 })),
       ...[
-        '🧅 MAHARASHTRA ONIONS', '🌾 VIJAYAPURA ONIONS', '🌱 NEW ONIONS',
-        '🥬 VEGETABLE & COMMODITY RATES',
+        'MAHARASHTRA ONIONS', 'VIJAYAPURA ONIONS', 'NEW ONIONS',
+        'VEGETABLE & COMMODITY RATES',
         `APMC ${marketShort}`, 'ONION MARKET REPORT', `Date. ${dateDisplay}`,
         'APMC WISE', 'ARRIVALS', arrivalsDisplay, trucksDisplay,
         `RATES FOR ${rateUnit.replace(/^Per\s*/i, '').toUpperCase()}`,
-        `${getWeatherIcon(weatherText)} ${weatherText.toUpperCase()}`,
+        weatherText.toUpperCase(),
         shopNameUpperEarly, getInitials(settings.shopName),
       ].map(t => ({ text: t, family: FONT_HEADING, weight: 400 })),
       { text: `SALES ${salesText.toUpperCase()}`, family: FONT_TABLE, weight: 700 },
       ...[
         taglineUpperEarly, 'BEST QUALITY', 'BEST RATES', 'TRUSTED SERVICE',
-        `📞 ${settings.phone}`, `💬 ${settings.whatsapp}`, settings.apmcAddress,
+        settings.phone, settings.whatsapp, settings.apmcAddress,
         (settings.phoneContactName || '').toUpperCase(),
         (settings.whatsappContactName || '').toUpperCase(),
       ].map(t => ({ text: t, family: FONT_BRAND, weight: 800 })),
@@ -411,7 +404,7 @@ export class PosterGenerator {
     const mhSectionSvg = hasMhRates ? `
       <g id="mh-table" transform="translate(${LEFT_X}, ${TABLES_TOP})">
         <rect x="0" y="0" width="${LEFT_W}" height="${mhTableH}" rx="18" fill="#fffdf6" stroke="${CARD_BORDER}" stroke-width="2" />
-        ${sectionHeader(0, 0, LEFT_W, mhHeaderH, theme.mhHeaderColor, 'MAHARASHTRA ONIONS', '🧅')}
+        ${sectionHeader(0, 0, LEFT_W, mhHeaderH, theme.mhHeaderColor, 'MAHARASHTRA ONIONS', 'onion')}
         ${mhRowsSvg}
         <rect x="0" y="${mhTableH - mhFooterH}" width="${LEFT_W}" height="${mhFooterH}" rx="12" fill="${theme.footerBarColor}" />
         <rect x="0" y="${mhTableH - mhFooterH}" width="${LEFT_W}" height="${mhFooterH / 2}" fill="${theme.footerBarColor}" />
@@ -436,8 +429,8 @@ export class PosterGenerator {
       rightColSvg += `
         <g id="vj-card" transform="translate(${RIGHT_X}, ${rightCursorY})">
           <rect x="0" y="0" width="${RIGHT_W}" height="${vjH}" rx="16" fill="#fffdf6" stroke="${CARD_BORDER}" stroke-width="2" />
-          ${sectionHeader(0, 0, RIGHT_W, vjHeaderH, theme.vjHeaderColor, 'VIJAYAPURA ONIONS', '🌾')}
-          ${heritageRow(16, vjHeaderH + 8, rightInteriorW, vjRowH, '🧅', 'RATES', null, vjRate, false, vjDividerX)}
+          ${sectionHeader(0, 0, RIGHT_W, vjHeaderH, theme.vjHeaderColor, 'VIJAYAPURA ONIONS', 'wheat')}
+          ${heritageRow(16, vjHeaderH + 8, rightInteriorW, vjRowH, 'onion', 'RATES', null, vjRate, false, vjDividerX)}
         </g>
       `;
       rightCursorY += vjH + 8;
@@ -464,13 +457,13 @@ export class PosterGenerator {
       const noDividerX = tableDividerX(noRows, rightInteriorW, noRowH);
       noRows.forEach((r, i) => {
         const y = noHeaderH + 8 + i * (noRowH + 4);
-        noRowsSvg += heritageRow(16, y, rightInteriorW, noRowH, '🧅', r.label, null, r.value, i % 2 === 1, noDividerX);
+        noRowsSvg += heritageRow(16, y, rightInteriorW, noRowH, 'onion', r.label, null, r.value, i % 2 === 1, noDividerX);
       });
 
       rightColSvg += `
         <g id="no-card" transform="translate(${RIGHT_X}, ${rightCursorY})">
           <rect x="0" y="0" width="${RIGHT_W}" height="${noH}" rx="16" fill="#fffdf6" stroke="${CARD_BORDER}" stroke-width="2" />
-          ${sectionHeader(0, 0, RIGHT_W, noHeaderH, theme.newOnionHeaderColor, 'NEW ONIONS', '🌱')}
+          ${sectionHeader(0, 0, RIGHT_W, noHeaderH, theme.newOnionHeaderColor, 'NEW ONIONS', 'sprout')}
           ${noRowsSvg}
           <text x="16" y="${noH - 11}" font-family="${FONT_TABLE}" font-size="${salesSize}" font-weight="700" fill="${RATE_TEXT_COLOR}" letter-spacing="0.2">${escapeXml(salesLabel)}</text>
         </g>
@@ -483,7 +476,8 @@ export class PosterGenerator {
     rightColSvg += `
       <g id="weather-bar" transform="translate(${RIGHT_X}, ${rightCursorY})">
         <rect x="0" y="0" width="${RIGHT_W}" height="${weatherH}" rx="14" fill="${theme.weatherBarColor}" />
-        <text x="${RIGHT_W / 2}" y="${weatherH / 2 + 10}" font-family="${FONT_HEADING}" font-size="28" font-weight="400" fill="#ffffff" text-anchor="middle" letter-spacing="0.1">${getWeatherIcon(weatherText)} ${escapeXml(weatherText.toUpperCase())}</text>
+        ${renderIcon(getWeatherIcon(weatherText), RIGHT_W / 2 - widthOf(weatherText.toUpperCase(), FONT_HEADING, 400, 28) / 2 - 40, weatherH / 2 - 15, 30, '#ffffff')}
+        <text x="${RIGHT_W / 2 + 19}" y="${weatherH / 2 + 10}" font-family="${FONT_HEADING}" font-size="28" font-weight="400" fill="#ffffff" text-anchor="middle" letter-spacing="0.1">${escapeXml(weatherText.toUpperCase())}</text>
       </g>
     `;
     rightCursorY += weatherH;
@@ -517,7 +511,7 @@ export class PosterGenerator {
       vegSectionSvg = `
         <g id="veg-table" transform="translate(${LEFT_X}, ${vegY})">
           <rect x="0" y="0" width="1008" height="${vegTableH}" rx="18" fill="#fffdf6" stroke="${CARD_BORDER}" stroke-width="2" />
-          ${sectionHeader(0, 0, 1008, vegHeaderH, theme.vegHeaderColor, 'VEGETABLE & COMMODITY RATES', '🥬')}
+          ${sectionHeader(0, 0, 1008, vegHeaderH, theme.vegHeaderColor, 'VEGETABLE & COMMODITY RATES', 'cabbage')}
           ${vegRowsSvg}
         </g>
       `;
@@ -622,15 +616,15 @@ export class PosterGenerator {
       <!-- 1. TITLE HEADER               -->
       <!-- ============================ -->
       <g id="title-header" transform="translate(0, 40)">
-        <!-- Onion cluster decorations (emoji fallback; skipped when onion.png photo is composited) -->
+        <!-- Onion cluster decorations (vector fallback; skipped when onion.png photo is composited) -->
         ${hasOnionPhoto ? '' : `
         <g transform="translate(64, 58)">
-          <text x="-16" y="8" font-family="'Segoe UI Emoji','Apple Color Emoji',Arial,sans-serif" font-size="68" text-anchor="middle" transform="rotate(-12)">🧅</text>
-          <text x="34" y="28" font-family="'Segoe UI Emoji','Apple Color Emoji',Arial,sans-serif" font-size="46" text-anchor="middle" transform="rotate(10)">🧅</text>
+          <g transform="rotate(-12)">${renderIcon('onion', -50, -34, 68)}</g>
+          <g transform="rotate(10)">${renderIcon('onion', 11, 5, 46)}</g>
         </g>
         <g transform="translate(1016, 58)">
-          <text x="16" y="8" font-family="'Segoe UI Emoji','Apple Color Emoji',Arial,sans-serif" font-size="68" text-anchor="middle" transform="rotate(12)">🧅</text>
-          <text x="-34" y="28" font-family="'Segoe UI Emoji','Apple Color Emoji',Arial,sans-serif" font-size="46" text-anchor="middle" transform="rotate(-10)">🧅</text>
+          <g transform="rotate(12)">${renderIcon('onion', -18, -34, 68)}</g>
+          <g transform="rotate(-10)">${renderIcon('onion', -57, 5, 46)}</g>
         </g>
         `}
 
@@ -644,7 +638,7 @@ export class PosterGenerator {
       <g id="date-badge" transform="translate(36, 172)" filter="url(#softShadow)">
         <rect x="0" y="0" width="1008" height="64" rx="16" fill="${theme.dateBadgeColor}" />
         <rect x="200" y="6" width="608" height="52" rx="14" fill="${RATE_BG_COLOR}" stroke="${RATE_BORDER_COLOR}" stroke-width="2.5" />
-        <text x="228" y="43" font-family="'Segoe UI Emoji','Apple Color Emoji',Arial,sans-serif" font-size="30">📅</text>
+        ${renderIcon('calendar', 226, 17, 30)}
         <text x="274" y="43" font-family="${FONT_HEADING}" font-size="32" font-weight="400" fill="${RATE_TEXT_COLOR}" letter-spacing="0.2">Date. ${escapeXml(dateDisplay)}</text>
       </g>
 
@@ -658,7 +652,7 @@ export class PosterGenerator {
         <line x1="298" y1="14" x2="298" y2="98" stroke="rgba(255,255,255,0.35)" stroke-width="2" />
         <text x="326" y="48" font-family="${FONT_HEADING}" font-size="40" font-weight="400" fill="#fde047">${escapeXml(arrivalsDisplay)}</text>
         <text x="326" y="92" font-family="${FONT_HEADING}" font-size="36" font-weight="400" fill="#fde047">${escapeXml(trucksDisplay)}</text>
-        ${hasTruckPhoto ? '' : `<text x="955" y="66" font-family="'Segoe UI Emoji','Apple Color Emoji',Arial,sans-serif" font-size="58" text-anchor="middle">🚛</text>`}
+        ${hasTruckPhoto ? '' : renderIcon('truck', 926, 27, 58, '#ffffff')}
       </g>
 
       <!-- ============================ -->
@@ -707,14 +701,16 @@ export class PosterGenerator {
         <g transform="translate(24, ${contactY})">
           <rect x="0" y="0" width="960" height="90" rx="45" fill="url(#contactGrad)" />
           <line x1="480" y1="12" x2="480" y2="78" stroke="rgba(255,255,255,0.4)" stroke-width="2" />
-          <text x="240" y="56" font-family="${FONT_BRAND}" font-size="${fitSize('📞 ' + settings.phone, FONT_BRAND, 800, 32, 18, 420)}" font-weight="800" fill="#ffffff" text-anchor="middle">📞 ${escapeXml(settings.phone)}</text>
-          <text x="720" y="56" font-family="${FONT_BRAND}" font-size="${fitSize('💬 ' + settings.whatsapp, FONT_BRAND, 800, 32, 18, 420)}" font-weight="800" fill="#ffffff" text-anchor="middle">💬 ${escapeXml(settings.whatsapp)}</text>
+          ${renderIcon('phone', 240 - widthOf(settings.phone, FONT_BRAND, 800, fitSize(settings.phone, FONT_BRAND, 800, 32, 18, 380)) / 2 - 44, 39, 30, '#ffffff')}
+          <text x="${240 + 19}" y="56" font-family="${FONT_BRAND}" font-size="${fitSize(settings.phone, FONT_BRAND, 800, 32, 18, 380)}" font-weight="800" fill="#ffffff" text-anchor="middle">${escapeXml(settings.phone)}</text>
+          ${renderIcon('chat', 720 - widthOf(settings.whatsapp, FONT_BRAND, 800, fitSize(settings.whatsapp, FONT_BRAND, 800, 32, 18, 380)) / 2 - 44, 39, 30, '#ffffff')}
+          <text x="${720 + 19}" y="56" font-family="${FONT_BRAND}" font-size="${fitSize(settings.whatsapp, FONT_BRAND, 800, 32, 18, 380)}" font-weight="800" fill="#ffffff" text-anchor="middle">${escapeXml(settings.whatsapp)}</text>
         </g>
 
         <!-- Address -->
         <g transform="translate(24, ${addressY})">
           <rect x="0" y="0" width="960" height="84" rx="16" fill="${theme.addressBg}" stroke="${theme.addressBorder}" stroke-width="2" />
-          <text x="480" y="34" font-family="'Segoe UI Emoji','Apple Color Emoji',Arial,sans-serif" font-size="21" text-anchor="middle">📍</text>
+          ${renderIcon('pin', 469, 14, 22)}
           <text x="480" y="63" font-family="${FONT_BRAND}" font-size="${fitSize(settings.apmcAddress, FONT_BRAND, 800, 22, 12, 900)}" font-weight="800" fill="${theme.addressText}" text-anchor="middle">${escapeXml(settings.apmcAddress)}</text>
         </g>
       </g>

@@ -63,7 +63,9 @@ Extract the structured market data from the following WhatsApp message.
 
 CRITICAL RULES:
 1. NEVER invent, calculate, or guess any value. If a value is missing, return null.
-2. Preserve exact price ranges (e.g. 4300-4500) and preserve '+' in counts (e.g. 325+ trucks, 7000+ bags).
+2. Preserve exact price ranges (e.g. 4300-4500) and preserve '+' in counts (e.g. "325+", "7000+").
+   "truckCount" is the BARE COUNT ONLY — never include the word "trucks"/"lorries".
+   From "325+ Trucks" return "325+", NOT "325+ Trucks". The renderer adds the word itself.
 3. Do not confuse dates with prices.
 4. Normalize dates to ISO "YYYY-MM-DD" and display "DD.MM.YYYY".
 5. Map Onion varieties accurately:
@@ -167,8 +169,33 @@ ${rawMessage}`;
 
     const parsed = JSON.parse(text);
     const validated = MarketReportNormalizedSchema.parse(parsed);
-    return validated as MarketReportNormalized;
+    return stripEchoedLabels(validated as MarketReportNormalized);
   }
+}
+
+/**
+ * Strips labels the poster adds itself, which the model tends to echo back from
+ * the source phrasing:
+ *
+ *   truckCount   "325+ Trucks" -> "325+"   (poster appends " Trucks")
+ *   salesStatus  "Sales slow"  -> "slow"   (poster prepends "SALES ")
+ *
+ * Left as-is they render as "325+ Trucks Trucks" and "SALES SALES SLOW". The
+ * prompt asks for bare values; this enforces it regardless of compliance.
+ *
+ * Note the neighbouring count fields deliberately DO carry their unit
+ * (`totalArrivals.display` = "65,326 bags", `newOnions.bagCount` = "7000+
+ * bags"), which is what makes these two easy to get wrong.
+ */
+function stripEchoedLabels(report: MarketReportNormalized): MarketReportNormalized {
+  const out = { ...report };
+  if (out.truckCount) {
+    out.truckCount = out.truckCount.replace(/\s*(?:trucks?|lorr(?:y|ies))\s*$/i, '').trim() || null;
+  }
+  if (out.salesStatus) {
+    out.salesStatus = out.salesStatus.replace(/^\s*sales\s+/i, '').trim() || null;
+  }
+  return out;
 }
 
 export const aiExtractor = new AIExtractionService();
