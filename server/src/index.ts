@@ -5,6 +5,7 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import reportRoutes from './routes/reportRoutes';
 import settingsRoutes from './routes/settingsRoutes';
+import arrivalsRoutes from './routes/arrivalsRoutes';
 import { ENV_FILE, PUBLIC_DIR } from './paths';
 
 dotenv.config({ path: ENV_FILE });
@@ -28,6 +29,7 @@ app.use('/posters', express.static(path.join(publicDir, 'posters')));
 // API Routes
 app.use('/api/reports', reportRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/arrivals', arrivalsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

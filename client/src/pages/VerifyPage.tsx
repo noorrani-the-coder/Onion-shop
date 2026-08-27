@@ -701,7 +701,7 @@ export const VerifyPage: React.FC<VerifyPageProps> = ({
       </div>
 
       {/* Floating Bottom Action Bar */}
-      <div className="sticky bottom-16 md:bottom-6 z-30 glass-card rounded-2xl p-3 sm:p-4 border-emerald-500/30 flex items-center justify-between gap-3 sm:gap-4 shadow-2xl bg-slate-950/90 backdrop-blur-xl">
+      <div className="sticky bottom-16 md:bottom-6 z-30 glass-card rounded-2xl p-3 sm:p-4 border-emerald-500/30 flex items-center justify-between gap-3 sm:gap-4 shadow-2xl bg-slate-950/90 backdrop-blur-md">
         <button
           onClick={onBack}
           className="px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm text-slate-300 hover:text-white bg-slate-900 border border-slate-700 transition-colors flex items-center gap-1.5 sm:gap-2 shrink-0"

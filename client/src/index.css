@@ -6,14 +6,34 @@
   body {
     @apply text-slate-100 antialiased font-sans min-h-screen selection:bg-sky-500 selection:text-white;
     background-color: #050e1d;
-    background-image: 
+    background-image:
       radial-gradient(at 0% 0%, rgba(14, 116, 144, 0.35) 0px, transparent 50%),
       radial-gradient(at 100% 0%, rgba(37, 99, 235, 0.3) 0px, transparent 50%),
       radial-gradient(at 50% 50%, rgba(2, 132, 199, 0.15) 0px, transparent 65%),
       radial-gradient(at 0% 100%, rgba(3, 105, 161, 0.25) 0px, transparent 50%),
       radial-gradient(at 100% 100%, rgba(30, 58, 138, 0.35) 0px, transparent 50%);
-    background-attachment: fixed;
+    /*
+     * Deliberately NOT `background-attachment: fixed`. A fixed background cannot
+     * be moved by the compositor, so all five gradients above are repainted
+     * across the whole viewport on every single scroll frame — the usual reason
+     * a page scrolls in steps instead of gliding. The ambient layer in
+     * BackgroundAnimation is position:fixed instead, which gets the same
+     * stationary look for the cost of one composited layer.
+     */
   }
+}
+
+/*
+ * Floating produce. `will-change` promotes each one to its own compositor layer
+ * so the keyframes below never touch layout or paint; duration and delay come
+ * from the component. Ten small layers is a cheap trade for ten repainting
+ * elements.
+ */
+.floating-produce {
+  animation-name: floatAround;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform;
 }
 
 /* Floating Animations for Onions, Garlic, Potatoes */
@@ -65,16 +85,30 @@
   background: rgba(56, 189, 248, 0.7);
 }
 
+/*
+ * Roughly 35 of these are on screen across the app, and each one re-blurs
+ * whatever sits behind it whenever that backdrop changes — which, while
+ * scrolling, is always. Blur cost climbs with the radius, and at this
+ * background opacity the difference between 16px and 10px is not visible
+ * through 78% cover, so the radius pays for itself in frames rather than looks.
+ */
 .glass-card {
   background: rgba(11, 27, 53, 0.78);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(56, 189, 248, 0.18);
   box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.45);
 }
 
+/*
+ * Named properties rather than `all`: `transition: all` puts every animatable
+ * property on the transition path, so an unrelated style change on hover can
+ * quietly start animating something expensive.
+ */
 .glass-card-hover {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .glass-card-hover:hover {
@@ -89,4 +123,25 @@
 
 .glow-amber {
   box-shadow: 0 0 25px -2px rgba(245, 158, 11, 0.35);
+}
+
+/*
+ * Some people get motion sick from drifting decoration, and the OS setting is
+ * how they say so. Everything switched off here is ambient — no information is
+ * carried by any of it.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .floating-produce {
+    animation: none;
+    will-change: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

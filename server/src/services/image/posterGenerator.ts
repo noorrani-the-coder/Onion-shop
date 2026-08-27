@@ -138,10 +138,30 @@ const FONT_HEADING = "'Anton', 'Arial Black', Impact, sans-serif";
 const FONT_TABLE = "'Roboto Condensed', 'Segoe UI', Arial, sans-serif";
 const FONT_BRAND = "'Montserrat', 'Segoe UI', Arial, sans-serif";
 
+// Row labels ("EXTRA BIG", "BIG", "MUKKAL"...) are drawn in the heavy display
+// face, uppercase, so they carry the same weight as the rate pill beside them.
+// Anton ships a single weight, so 400 already renders as a black condensed face.
+const FONT_LABEL = FONT_HEADING;
+const LABEL_WEIGHT = 400;
+
+/** Labels render uppercase; every measurement must use the same string. */
+function labelDisplay(label: string): string {
+  return label.toUpperCase();
+}
+
 // Instagram feed-post portrait canvas (4:5 — the tallest ratio Instagram's feed supports
 // without auto-cropping; 2:3 or 9:16 get cropped when posted to the main feed).
 const CANVAS_W = 1080;
-const CANVAS_H = 1350;
+/**
+ * 9:16 is the frame this poster is designed around — the shape a phone shows
+ * full-screen, and the height every block below is tuned for.
+ *
+ * It is a minimum, not a maximum. A report dense enough to need more room
+ * (a full grade table plus a vegetables table) extends the canvas rather than
+ * shrinking its own type: a poster nobody can read at a glance has failed at
+ * the only job it has, whatever its aspect ratio.
+ */
+const CANVAS_H_MIN = 1920;
 
 // Optional licensed photo assets — drop files at these paths to replace the
 // emoji/icon accents with real photography. Any subset may be present; each
@@ -198,59 +218,115 @@ function rowLabelStartX(height: number): number {
 }
 
 function rowBaseLabelSize(height: number): number {
-  return height > 60 ? 34 : 29;
+  return height > 55 ? 50 : 41;
 }
 
-const MIN_LABEL_SIZE = 20;
-const MIN_VALUE_SIZE = 18;
+function rowBaseValueSize(height: number): number {
+  return height > 55 ? 41 : 35;
+}
+
+const MIN_LABEL_SIZE = 22;
+// A label is allowed to shrink to MIN_LABEL_SIZE to fit, but the pill column
+// gives way before it drops below this — small beats clipped for a grade name.
+const LABEL_COMFORT_SIZE = 32;
+const MIN_VALUE_SIZE = 22;
 
 /**
  * One divider position for a whole table, so every rate pill in it starts at the
  * same x and the column reads straight.
  *
- * It starts at the design's default split and slides right until the longest
- * label in the table has room — but never past the point where the widest rate
- * would stop fitting its pill at the smallest allowed size. Labels that still
- * do not fit shrink (and only then truncate) inside whatever room is left, which
- * is what makes a label/pill collision geometrically impossible.
+ * The rate is the data traders actually read, so the pill is reserved first, at
+ * its full base size: the divider can never slide past the point where the widest
+ * rate in the table still fits unshrunk. Labels then take whatever room is left,
+ * shrinking (and only as a last resort truncating) to fit it — which is what makes
+ * a label/pill collision geometrically impossible without ever clipping a rate.
  */
 function tableDividerX(rows: { label: string; value: string }[], width: number, height: number): number {
   const labelStartX = rowLabelStartX(height);
   const baseLabelSize = rowBaseLabelSize(height);
   const dividerFloor = labelStartX + 40;
 
-  const ceilings = rows.map(r => width - PILL_GAP - (widthOf(r.value, FONT_HEADING, 400, MIN_VALUE_SIZE) + PILL_PAD * 2));
-  const dividerCeil = Math.max(dividerFloor, Math.min(...ceilings));
+  const pillRoom = (size: number) =>
+    Math.min(...rows.map(r => width - PILL_GAP - (widthOf(r.value, FONT_HEADING, 400, size) + PILL_PAD * 2)));
+  const labelRoom = (size: number) =>
+    Math.max(...rows.map(r => labelStartX + widthOf(labelDisplay(r.label), FONT_LABEL, LABEL_WEIGHT, size) + LABEL_GAP));
 
-  const wants = Math.max(
-    width * 0.56,
-    ...rows.map(r => labelStartX + widthOf(r.label, FONT_TABLE, 700, baseLabelSize) + LABEL_GAP)
+  // The pill is reserved at full size first, so a rate never shrinks to make
+  // room for a label. The exception is a narrow table whose label would then be
+  // squeezed under LABEL_COMFORT_SIZE: there the divider may slide further right,
+  // as far as the pill can shrink without going under MIN_VALUE_SIZE. Both stay
+  // legible, and neither can ever be clipped.
+  const dividerCeil = Math.max(
+    dividerFloor,
+    Math.min(pillRoom(MIN_VALUE_SIZE), Math.max(pillRoom(rowBaseValueSize(height)), labelRoom(LABEL_COMFORT_SIZE)))
   );
+
+  const wants = Math.max(width * 0.56, labelRoom(baseLabelSize));
   return Math.min(wants, dividerCeil);
+}
+
+/**
+ * One label size and one rate size for a whole table: the largest that every
+ * row can carry.
+ *
+ * Sizing each row independently is what makes a rate board look ragged — a
+ * short grade like CHOPDA renders half again as large as AVERAGE QUALITY
+ * directly beneath it, and the eye reads the size difference as an importance
+ * difference that the data does not have. Taking the minimum across the table
+ * costs the short labels a few pixels and buys one clean column of type.
+ */
+function tableTypeSizes(
+  rows: { label: string; value: string }[],
+  width: number,
+  height: number,
+  dividerX: number
+): { labelSize: number; valueSize: number } {
+  const labelStartX = rowLabelStartX(height);
+  const labelAvailW = dividerX - LABEL_GAP - labelStartX;
+  const valueAvailW = width - dividerX - PILL_GAP - PILL_PAD * 2;
+
+  let labelSize = rowBaseLabelSize(height);
+  let valueSize = rowBaseValueSize(height);
+  for (const r of rows) {
+    labelSize = Math.min(
+      labelSize,
+      fitSize(labelDisplay(r.label), FONT_LABEL, LABEL_WEIGHT, rowBaseLabelSize(height), MIN_LABEL_SIZE, labelAvailW)
+    );
+    valueSize = Math.min(
+      valueSize,
+      fitSize(r.value, FONT_HEADING, 400, rowBaseValueSize(height), MIN_VALUE_SIZE, valueAvailW)
+    );
+  }
+  return { labelSize, valueSize };
 }
 
 // Renders one bold-label / bold-rate row: label to the left, a divider, a bold rate pill to the right.
 // `dividerX` comes from tableDividerX so all rows of a table share one pill column.
-function heritageRow(x: number, y: number, width: number, height: number, icon: string, label: string, sublabel: string | null, value: string, isAlt: boolean, dividerX: number): string {
+function heritageRow(x: number, y: number, width: number, height: number, icon: string, label: string, sublabel: string | null, value: string, isAlt: boolean, dividerX: number, forced?: { labelSize: number; valueSize: number }): string {
   const rowBg = isAlt ? ROW_BG_B : ROW_BG_A;
   const iconBoxSize = height - 14;
   const labelStartX = rowLabelStartX(height);
 
   const baseLabelSize = rowBaseLabelSize(height);
-  const baseValueSize = height > 60 ? 33 : 28;
+  const baseValueSize = rowBaseValueSize(height);
   const minLabelSize = MIN_LABEL_SIZE;
   const minValueSize = MIN_VALUE_SIZE;
 
   const labelAvailW = dividerX - LABEL_GAP - labelStartX;
-  const labelFontSize = fitSize(label, FONT_TABLE, 700, baseLabelSize, minLabelSize, labelAvailW);
-  const labelText = truncateToWidth(label, FONT_TABLE, 700, labelFontSize, labelAvailW);
+  const labelUpper = labelDisplay(label);
+  const labelFontSize = forced
+    ? forced.labelSize
+    : fitSize(labelUpper, FONT_LABEL, LABEL_WEIGHT, baseLabelSize, minLabelSize, labelAvailW);
+  const labelText = truncateToWidth(labelUpper, FONT_LABEL, LABEL_WEIGHT, labelFontSize, labelAvailW);
 
   const rateWidth = width - dividerX - PILL_GAP;
   const valueAvailW = rateWidth - PILL_PAD * 2;
-  const valueFontSize = fitSize(value, FONT_HEADING, 400, baseValueSize, minValueSize, valueAvailW);
+  const valueFontSize = forced
+    ? forced.valueSize
+    : fitSize(value, FONT_HEADING, 400, baseValueSize, minValueSize, valueAvailW);
   const valueText = truncateToWidth(value, FONT_HEADING, 400, valueFontSize, valueAvailW);
 
-  const subFontSize = 16;
+  const subFontSize = 22;
   const subText = sublabel ? truncateToWidth(sublabel, FONT_TABLE, 700, subFontSize, labelAvailW) : null;
 
   return `
@@ -258,7 +334,7 @@ function heritageRow(x: number, y: number, width: number, height: number, icon: 
       <rect x="0" y="0" width="${width}" height="${height}" fill="${rowBg}" />
       <rect x="7" y="7" width="${iconBoxSize}" height="${iconBoxSize}" rx="8" fill="rgba(15,23,42,0.06)" />
       ${renderIcon(icon, 7 + (iconBoxSize - Math.min(26, iconBoxSize - 6)) / 2, 7 + (iconBoxSize - Math.min(26, iconBoxSize - 6)) / 2, Math.min(26, iconBoxSize - 6))}
-      <text x="${labelStartX}" y="${subText ? height / 2 - 5 : height / 2 + 10}" font-family="${FONT_TABLE}" font-size="${labelFontSize}" font-weight="700" fill="${LABEL_TEXT_COLOR}" letter-spacing="0.2">${escapeXml(labelText)}</text>
+      <text x="${labelStartX}" y="${subText ? height / 2 - 5 : height / 2 + 10}" font-family="${FONT_LABEL}" font-size="${labelFontSize}" font-weight="${LABEL_WEIGHT}" fill="${LABEL_TEXT_COLOR}" letter-spacing="0.2">${escapeXml(labelText)}</text>
       ${subText ? `<text x="${labelStartX}" y="${height / 2 + 19}" font-family="${FONT_TABLE}" font-size="${subFontSize}" font-weight="700" fill="#475569">${escapeXml(subText)}</text>` : ''}
       <line x1="${dividerX}" y1="8" x2="${dividerX}" y2="${height - 8}" stroke="rgba(15,23,42,0.15)" stroke-width="1.5" />
       <rect x="${dividerX + PILL_GAP}" y="6" width="${rateWidth}" height="${height - 12}" rx="10" fill="${RATE_BG_COLOR}" stroke="${RATE_BORDER_COLOR}" stroke-width="2.5" />
@@ -269,13 +345,13 @@ function heritageRow(x: number, y: number, width: number, height: number, icon: 
 }
 
 function sectionHeader(x: number, y: number, width: number, height: number, color: string, title: string, icon: string): string {
-  const baseSize = width > 400 ? 31 : 24;
+  const baseSize = width > 400 ? 39 : 30;
   // The icon is drawn as vector art rather than measured as a glyph, so it
   // claims a fixed gutter and the title is fitted to whatever is left.
   const iconSize = Math.min(32, height - 12);
   const titleX = 18 + iconSize + 10;
   const availW = width - titleX - 16;
-  const size = fitSize(title, FONT_HEADING, 400, baseSize, 18, availW);
+  const size = fitSize(title, FONT_HEADING, 400, baseSize, 22, availW);
   const text = truncateToWidth(title, FONT_HEADING, 400, size, availW);
   return `
     <g transform="translate(${x}, ${y})">
@@ -346,13 +422,13 @@ export class PosterGenerator {
     // Anything missed here still gets a deliberately wide fallback estimate, so
     // an omission costs a slightly small font, never an overlap.
     await warmTextMetrics([
-      ...mhItems.map(i => ({ text: i.label, family: FONT_TABLE, weight: 700 })),
+      ...mhItems.map(i => ({ text: labelDisplay(i.label), family: FONT_LABEL, weight: LABEL_WEIGHT })),
       ...mhItems.map(i => ({ text: i.rate, family: FONT_HEADING, weight: 400 })),
-      ...commodities.map(c => ({ text: c.name, family: FONT_TABLE, weight: 700 })),
+      ...commodities.map(c => ({ text: labelDisplay(c.name), family: FONT_LABEL, weight: LABEL_WEIGHT })),
       ...commodities.map(c => ({ text: [c.variety, c.unit].filter(Boolean).join(' • '), family: FONT_TABLE, weight: 700 })),
       ...commodities.map(c => ({ text: c.rate?.display || 'As Per Quality', family: FONT_HEADING, weight: 400 })),
       ...['RATES', '1-2 LOT', (report.newOnions?.state || 'KARNATAKA').toUpperCase()]
-        .map(t => ({ text: t, family: FONT_TABLE, weight: 700 })),
+        .map(t => ({ text: labelDisplay(t), family: FONT_LABEL, weight: LABEL_WEIGHT })),
       ...[
         report.vijayapura?.rate?.display || '3000-3700',
         report.newOnions?.bagCount || '—',
@@ -380,25 +456,64 @@ export class PosterGenerator {
     // ==================================================================
     // Left column: MAHARASHTRA ONIONS table
     // ==================================================================
-    const TABLES_TOP = 370;
-    const LEFT_X = 36;
-    const LEFT_W = 560;
-    const RIGHT_X = LEFT_X + LEFT_W + 20;
-    const RIGHT_W = 1044 - RIGHT_X;
+    // Branding is deliberately small on this layout and its height is fixed, so
+    // the rate tables — the reason anyone opens the image — get everything else.
+    const hasPhoneContact = !!(settings.phoneContactName && settings.phoneContactName.trim());
+    const hasWhatsappContact = !!(settings.whatsappContactName && settings.whatsappContactName.trim());
+    const namesRowH = (hasPhoneContact || hasWhatsappContact) ? 28 : 0;
+    const namesGap = namesRowH > 0 ? 6 : 0;
+    const namesBlockH = namesRowH + namesGap;
+    const BRAND_TOP_H = 138;
+    const bottomBlockH = namesBlockH + 68 + 12 + 64;
+    const bottomPad = 12;
+    const brandingH = BRAND_TOP_H + bottomBlockH + bottomPad;
 
-    const mhRowHeight = mhItems.length > 7 ? 50 : (mhItems.length > 5 ? 60 : 70);
-    const mhHeaderH = 40;
-    const mhFooterH = 36;
+    const TABLES_TOP = 470;
+    const LEFT_X = 36;
+    const LEFT_W = 1008;
+    const RIGHT_X = LEFT_X;
+    const RIGHT_W = LEFT_W;
+
+    const mhBaseRowH = mhItems.length > 7 ? 62 : (mhItems.length > 5 ? 75 : 88);
+    const mhHeaderH = 50;
+    const mhFooterH = 45;
+    // 9:16 leaves room the 4:5 layout never had. Rather than bank it as empty
+    // paper above the branding card, the grade rows grow into it — the tallest
+    // type on the poster gets the tallest rows. Capped so a short report does
+    // not turn into a few enormous bands.
+    const MH_ROW_MIN = 56;
+    const noRowCount =
+      (report.newOnions?.state || report.newOnions?.bagCount ? 1 : 0) +
+      1 +
+      (report.newOnions?.lotRate?.display ? 1 : 0);
+    const vegRowHEarly = commodities.length > 6 ? 62 : 75;
+    const stackedBelowH =
+      (hasVJ ? 52 + 72 + 10 + 8 : 0) +
+      (hasNewOnion ? 52 + noRowCount * (65 + 4) + 10 + 34 + 8 : 0) +
+      (72 + 12) +
+      (hasCommodities ? 55 + commodities.length * (vegRowHEarly + 4) + 10 + 12 : 0);
+    // What the poster needs if every stretchable row sits at its floor. Only
+    // this decides the canvas height; everything after it is positioning.
+    const mhFloorTableH = hasMhRates ? mhHeaderH + mhItems.length * (MH_ROW_MIN + 2) + 10 + mhFooterH + 12 : 0;
+    const contentNeedsH = TABLES_TOP + mhFloorTableH + stackedBelowH + brandingH + 24;
+    const CANVAS_H = Math.max(CANVAS_H_MIN, Math.ceil(contentNeedsH));
+    const brandingTop = CANVAS_H - 24 - brandingH;
+    const tablesAvailH = brandingTop - 12 - TABLES_TOP - stackedBelowH;
+    const mhFillRowH =
+      hasMhRates && mhItems.length > 0
+        ? Math.floor((tablesAvailH - mhHeaderH - mhFooterH - 10) / mhItems.length) - 2
+        : mhBaseRowH;
+    const mhRowHeight = Math.max(MH_ROW_MIN, Math.min(mhFillRowH, Math.round(mhBaseRowH * 2.4)));
     const mhInteriorW = LEFT_W - 32;
     const mhTableH = hasMhRates ? mhHeaderH + mhItems.length * (mhRowHeight + 2) + 10 + mhFooterH : 0;
 
     let mhRowsSvg = '';
-    const mhDividerX = tableDividerX(
-      mhItems.map(i => ({ label: i.label, value: i.rate })), mhInteriorW, mhRowHeight
-    );
+    const mhTableRows = mhItems.map(i => ({ label: i.label, value: i.rate }));
+    const mhDividerX = tableDividerX(mhTableRows, mhInteriorW, mhRowHeight);
+    const mhSizes = tableTypeSizes(mhTableRows, mhInteriorW, mhRowHeight, mhDividerX);
     mhItems.forEach((item, i) => {
       const y = mhHeaderH + 8 + i * (mhRowHeight + 2);
-      mhRowsSvg += heritageRow(16, y, mhInteriorW, mhRowHeight, item.icon, item.label, null, item.rate, i % 2 === 1, mhDividerX);
+      mhRowsSvg += heritageRow(16, y, mhInteriorW, mhRowHeight, item.icon, item.label, null, item.rate, i % 2 === 1, mhDividerX, mhSizes);
     });
 
     const mhSectionSvg = hasMhRates ? `
@@ -408,7 +523,7 @@ export class PosterGenerator {
         ${mhRowsSvg}
         <rect x="0" y="${mhTableH - mhFooterH}" width="${LEFT_W}" height="${mhFooterH}" rx="12" fill="${theme.footerBarColor}" />
         <rect x="0" y="${mhTableH - mhFooterH}" width="${LEFT_W}" height="${mhFooterH / 2}" fill="${theme.footerBarColor}" />
-        <text x="${LEFT_W / 2}" y="${mhTableH - mhFooterH / 2 + 9}" font-family="${FONT_HEADING}" font-size="24" font-weight="400" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">RATES FOR ${escapeXml(rateUnit.replace(/^Per\s*/i, '').toUpperCase())}</text>
+        <text x="${LEFT_W / 2}" y="${mhTableH - mhFooterH / 2 + 9}" font-family="${FONT_HEADING}" font-size="30" font-weight="400" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">RATES FOR ${escapeXml(rateUnit.replace(/^Per\s*/i, '').toUpperCase())}</text>
       </g>
     ` : '';
     const leftBottomY = TABLES_TOP + (hasMhRates ? mhTableH : 0);
@@ -416,13 +531,13 @@ export class PosterGenerator {
     // ==================================================================
     // Right column: Vijayapura + New Onions + Weather
     // ==================================================================
-    let rightCursorY = TABLES_TOP;
+    let rightCursorY = TABLES_TOP + (hasMhRates ? mhTableH + 12 : 0);
     let rightColSvg = '';
     const rightInteriorW = RIGHT_W - 32;
 
     if (hasVJ) {
-      const vjHeaderH = 42;
-      const vjRowH = 58;
+      const vjHeaderH = 52;
+      const vjRowH = 72;
       const vjH = vjHeaderH + vjRowH + 10;
       const vjRate = report.vijayapura?.rate?.display || '3000-3700';
       const vjDividerX = tableDividerX([{ label: 'RATES', value: vjRate }], rightInteriorW, vjRowH);
@@ -437,7 +552,7 @@ export class PosterGenerator {
     }
 
     if (hasNewOnion) {
-      const noHeaderH = 42;
+      const noHeaderH = 52;
       const noRows: { label: string; value: string }[] = [];
       if (report.newOnions?.state || report.newOnions?.bagCount) {
         noRows.push({ label: (report.newOnions?.state || 'KARNATAKA').toUpperCase(), value: report.newOnions?.bagCount || '—' });
@@ -446,18 +561,19 @@ export class PosterGenerator {
       if (report.newOnions?.lotRate?.display) {
         noRows.push({ label: '1-2 LOT', value: report.newOnions.lotRate.display });
       }
-      const noRowH = 52;
+      const noRowH = 65;
       const salesH = 34;
       const salesGap = 10;
       const noH = noHeaderH + noRows.length * (noRowH + 4) + salesGap + salesH;
       const salesLabel = `SALES ${salesText.toUpperCase()}`;
-      const salesSize = fitSize(salesLabel, FONT_TABLE, 700, 26, 16, RIGHT_W - 32);
+      const salesSize = fitSize(salesLabel, FONT_TABLE, 700, 32, 20, RIGHT_W - 32);
 
       let noRowsSvg = '';
       const noDividerX = tableDividerX(noRows, rightInteriorW, noRowH);
+      const noSizes = tableTypeSizes(noRows, rightInteriorW, noRowH, noDividerX);
       noRows.forEach((r, i) => {
         const y = noHeaderH + 8 + i * (noRowH + 4);
-        noRowsSvg += heritageRow(16, y, rightInteriorW, noRowH, 'onion', r.label, null, r.value, i % 2 === 1, noDividerX);
+        noRowsSvg += heritageRow(16, y, rightInteriorW, noRowH, 'onion', r.label, null, r.value, i % 2 === 1, noDividerX, noSizes);
       });
 
       rightColSvg += `
@@ -472,12 +588,12 @@ export class PosterGenerator {
     }
 
     // Weather bar
-    const weatherH = 58;
+    const weatherH = 72;
     rightColSvg += `
       <g id="weather-bar" transform="translate(${RIGHT_X}, ${rightCursorY})">
         <rect x="0" y="0" width="${RIGHT_W}" height="${weatherH}" rx="14" fill="${theme.weatherBarColor}" />
         ${renderIcon(getWeatherIcon(weatherText), RIGHT_W / 2 - widthOf(weatherText.toUpperCase(), FONT_HEADING, 400, 28) / 2 - 40, weatherH / 2 - 15, 30, '#ffffff')}
-        <text x="${RIGHT_W / 2 + 19}" y="${weatherH / 2 + 10}" font-family="${FONT_HEADING}" font-size="28" font-weight="400" fill="#ffffff" text-anchor="middle" letter-spacing="0.1">${escapeXml(weatherText.toUpperCase())}</text>
+        <text x="${RIGHT_W / 2 + 19}" y="${weatherH / 2 + 10}" font-family="${FONT_HEADING}" font-size="35" font-weight="400" fill="#ffffff" text-anchor="middle" letter-spacing="0.1">${escapeXml(weatherText.toUpperCase())}</text>
       </g>
     `;
     rightCursorY += weatherH;
@@ -491,8 +607,8 @@ export class PosterGenerator {
     let afterVegY = columnsBottomY;
     if (hasCommodities) {
       const vegY = columnsBottomY + 12;
-      const vegHeaderH = 44;
-      const vegRowH = commodities.length > 6 ? 50 : 60;
+      const vegHeaderH = 55;
+      const vegRowH = commodities.length > 6 ? 62 : 75;
       const vegInteriorW = 1008 - 32;
       const vegTableH = vegHeaderH + commodities.length * (vegRowH + 4) + 10;
 
@@ -525,31 +641,20 @@ export class PosterGenerator {
     // contact-person name tags, and the bottom block (contact bar + address) —
     // used both to size the footer card and to guarantee it never gets pushed
     // off the bottom of the canvas.
-    const topBlockBottom = 178;
-    const hasPhoneContact = !!(settings.phoneContactName && settings.phoneContactName.trim());
-    const hasWhatsappContact = !!(settings.whatsappContactName && settings.whatsappContactName.trim());
-    const namesRowH = (hasPhoneContact || hasWhatsappContact) ? 34 : 0;
-    const namesGap = namesRowH > 0 ? 8 : 0;
-    const namesBlockH = namesRowH + namesGap;
-    const bottomBlockH = namesBlockH + 90 + 14 + 84;
-    const bottomPad = 14;
-    const minFooterH = topBlockBottom + bottomBlockH + bottomPad + 10;
-
-    let footerY = Math.max(afterVegY + 10, Math.round(CANVAS_H * 0.55));
-    const maxFooterY = CANVAS_H - 24 - minFooterH;
-    if (footerY > maxFooterY) footerY = maxFooterY;
-    // Never let the overflow cap above push the footer card up into the table
-    // content that ends at afterVegY — overlap is worse than a snug footer.
-    footerY = Math.max(footerY, afterVegY + 10);
-    const footerH = CANVAS_H - footerY - 24;
+    const topBlockBottom = BRAND_TOP_H;
+    // The card sits at the bottom at its reserved height. A report long enough
+    // to reach it pushes it down instead of overlapping — a snug card beats
+    // rates printed underneath a phone number.
+    const footerY = brandingTop;
+    const footerH = brandingH;
 
     const initials = getInitials(settings.shopName);
     const shopNameUpper = settings.shopName.toUpperCase();
     // Banner is 764 wide starting at x=204; keep 24px of plaque either side.
-    const shopHeaderFontSize = fitSize(shopNameUpper, FONT_HEADING, 400, 46, 22, 716);
+    const shopHeaderFontSize = fitSize(shopNameUpper, FONT_HEADING, 400, 34, 18, 716);
 
     const taglineUpper = (settings.footerTagline || 'Onion Wholesale Merchants').toUpperCase();
-    const taglineFontSize = fitSize(taglineUpper, FONT_BRAND, 800, 20, 12, 730);
+    const taglineFontSize = fitSize(taglineUpper, FONT_BRAND, 800, 15, 11, 730);
 
     // Anchor the name tags + contact bar + address to the bottom of the card, so
     // short reports (tall leftover card space) don't leave a dead gap below the
@@ -557,7 +662,7 @@ export class PosterGenerator {
     // overflows the card.
     const contactY = Math.max(topBlockBottom + 20 + namesBlockH, footerH - bottomBlockH - bottomPad);
     const namesY = contactY - namesBlockH;
-    const addressY = contactY + 104;
+    const addressY = contactY + 80;
     const useWarehousePhoto = hasWarehousePhoto && (namesY - (topBlockBottom + 20)) >= 40;
     const warehouseBandTop = topBlockBottom + 20;
     const warehouseBandH = Math.max(0, namesY - 10 - warehouseBandTop);
@@ -635,24 +740,24 @@ export class PosterGenerator {
       <!-- ============================ -->
       <!-- 2. DATE BADGE                 -->
       <!-- ============================ -->
-      <g id="date-badge" transform="translate(36, 172)" filter="url(#softShadow)">
-        <rect x="0" y="0" width="1008" height="64" rx="16" fill="${theme.dateBadgeColor}" />
-        <rect x="200" y="6" width="608" height="52" rx="14" fill="${RATE_BG_COLOR}" stroke="${RATE_BORDER_COLOR}" stroke-width="2.5" />
-        ${renderIcon('calendar', 226, 17, 30)}
-        <text x="274" y="43" font-family="${FONT_HEADING}" font-size="32" font-weight="400" fill="${RATE_TEXT_COLOR}" letter-spacing="0.2">Date. ${escapeXml(dateDisplay)}</text>
+      <g id="date-badge" transform="translate(36, 196)" filter="url(#softShadow)">
+        <rect x="0" y="0" width="1008" height="80" rx="16" fill="${theme.dateBadgeColor}" />
+        <rect x="180" y="8" width="648" height="64" rx="14" fill="${RATE_BG_COLOR}" stroke="${RATE_BORDER_COLOR}" stroke-width="2.5" />
+        ${renderIcon('calendar', 210, 24, 34)}
+        <text x="262" y="55" font-family="${FONT_HEADING}" font-size="40" font-weight="400" fill="${RATE_TEXT_COLOR}" letter-spacing="0.2">Date. ${escapeXml(dateDisplay)}</text>
       </g>
 
       <!-- ============================ -->
       <!-- 3. ARRIVALS BAR                -->
       <!-- ============================ -->
-      <g id="arrivals-bar" transform="translate(36, 248)" filter="url(#softShadow)">
-        <rect x="0" y="0" width="1008" height="112" rx="16" fill="${theme.arrivalsBarColor}" />
-        <text x="24" y="42" font-family="${FONT_HEADING}" font-size="27" font-weight="400" fill="#ffffff" letter-spacing="0.1">APMC WISE</text>
-        <text x="24" y="76" font-family="${FONT_HEADING}" font-size="27" font-weight="400" fill="#ffffff" letter-spacing="0.1">ARRIVALS</text>
-        <line x1="298" y1="14" x2="298" y2="98" stroke="rgba(255,255,255,0.35)" stroke-width="2" />
-        <text x="326" y="48" font-family="${FONT_HEADING}" font-size="40" font-weight="400" fill="#fde047">${escapeXml(arrivalsDisplay)}</text>
-        <text x="326" y="92" font-family="${FONT_HEADING}" font-size="36" font-weight="400" fill="#fde047">${escapeXml(trucksDisplay)}</text>
-        ${hasTruckPhoto ? '' : renderIcon('truck', 926, 27, 58, '#ffffff')}
+      <g id="arrivals-bar" transform="translate(36, 292)" filter="url(#softShadow)">
+        <rect x="0" y="0" width="1008" height="140" rx="16" fill="${theme.arrivalsBarColor}" />
+        <text x="24" y="54" font-family="${FONT_HEADING}" font-size="34" font-weight="400" fill="#ffffff" letter-spacing="0.1">APMC WISE</text>
+        <text x="24" y="96" font-family="${FONT_HEADING}" font-size="34" font-weight="400" fill="#ffffff" letter-spacing="0.1">ARRIVALS</text>
+        <line x1="360" y1="16" x2="360" y2="124" stroke="rgba(255,255,255,0.35)" stroke-width="2" />
+        <text x="392" y="60" font-family="${FONT_HEADING}" font-size="50" font-weight="400" fill="#fde047">${escapeXml(arrivalsDisplay)}</text>
+        <text x="392" y="116" font-family="${FONT_HEADING}" font-size="45" font-weight="400" fill="#fde047">${escapeXml(trucksDisplay)}</text>
+        ${hasTruckPhoto ? '' : renderIcon('truck', 912, 38, 72, '#ffffff')}
       </g>
 
       <!-- ============================ -->
@@ -673,25 +778,25 @@ export class PosterGenerator {
         <rect x="0" y="0" width="1008" height="${footerH}" rx="20" fill="#fffdf6" stroke="${CARD_BORDER}" stroke-width="2.5" filter="url(#softShadow)" />
 
         <!-- Logo monogram (ring always drawn; photo logo composited on top when logo.png is present) -->
-        <circle cx="100" cy="72" r="54" fill="#fffdf6" stroke="${theme.shopNameColor}" stroke-width="4" />
+        <circle cx="86" cy="58" r="42" fill="#fffdf6" stroke="${theme.shopNameColor}" stroke-width="3" />
         ${hasLogoPhoto ? '' : `
-        <text x="100" y="85" font-family="${FONT_HEADING}" font-size="36" font-weight="400" fill="${theme.shopNameColor}" text-anchor="middle">${escapeXml(initials)}</text>
+        <text x="86" y="70" font-family="${FONT_HEADING}" font-size="27" font-weight="400" fill="${theme.shopNameColor}" text-anchor="middle">${escapeXml(initials)}</text>
         `}
 
         <!-- Shop name banner (colored plaque, not plain text-on-white, so it reads as the poster's focal point) -->
-        <rect x="204" y="12" width="764" height="58" rx="16" fill="url(#shopBannerGrad)" />
-        <text x="586" y="53" font-family="${FONT_HEADING}" font-size="${shopHeaderFontSize}" font-weight="400" fill="#fde047" text-anchor="middle" letter-spacing="0.2" stroke="#00000055" stroke-width="0.5">${escapeXml(shopNameUpper)}</text>
-        <rect x="190" y="78" width="778" height="38" rx="19" fill="${theme.pillA}" />
-        <text x="579" y="103" font-family="${FONT_BRAND}" font-size="${taglineFontSize}" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">${escapeXml(taglineUpper)}</text>
+        <rect x="176" y="10" width="792" height="46" rx="14" fill="url(#shopBannerGrad)" />
+        <text x="572" y="42" font-family="${FONT_HEADING}" font-size="${shopHeaderFontSize}" font-weight="400" fill="#fde047" text-anchor="middle" letter-spacing="0.2" stroke="#00000055" stroke-width="0.5">${escapeXml(shopNameUpper)}</text>
+        <rect x="176" y="62" width="792" height="30" rx="15" fill="${theme.pillA}" />
+        <text x="572" y="83" font-family="${FONT_BRAND}" font-size="${taglineFontSize}" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">${escapeXml(taglineUpper)}</text>
 
         <!-- Feature pills -->
-        <g transform="translate(76, 128)">
-          <rect x="0" y="0" width="270" height="44" rx="22" fill="${theme.pillA}" />
-          <text x="135" y="28" font-family="${FONT_BRAND}" font-size="18" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">BEST QUALITY</text>
-          <rect x="292" y="0" width="270" height="44" rx="22" fill="${theme.pillB}" />
-          <text x="427" y="28" font-family="${FONT_BRAND}" font-size="18" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">BEST RATES</text>
-          <rect x="584" y="0" width="270" height="44" rx="22" fill="${theme.pillA}" />
-          <text x="719" y="28" font-family="${FONT_BRAND}" font-size="18" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">TRUSTED SERVICE</text>
+        <g transform="translate(76, 100)">
+          <rect x="0" y="0" width="270" height="34" rx="17" fill="${theme.pillA}" />
+          <text x="135" y="23" font-family="${FONT_BRAND}" font-size="14" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">BEST QUALITY</text>
+          <rect x="292" y="0" width="270" height="34" rx="17" fill="${theme.pillB}" />
+          <text x="427" y="23" font-family="${FONT_BRAND}" font-size="14" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">BEST RATES</text>
+          <rect x="584" y="0" width="270" height="34" rx="17" fill="${theme.pillA}" />
+          <text x="719" y="23" font-family="${FONT_BRAND}" font-size="14" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">TRUSTED SERVICE</text>
         </g>
 
         <!-- Contact-person name tags (above the matching number below) -->
@@ -699,8 +804,8 @@ export class PosterGenerator {
 
         <!-- Contact bar -->
         <g transform="translate(24, ${contactY})">
-          <rect x="0" y="0" width="960" height="90" rx="45" fill="url(#contactGrad)" />
-          <line x1="480" y1="12" x2="480" y2="78" stroke="rgba(255,255,255,0.4)" stroke-width="2" />
+          <rect x="0" y="0" width="960" height="68" rx="34" fill="url(#contactGrad)" />
+          <line x1="480" y1="10" x2="480" y2="58" stroke="rgba(255,255,255,0.4)" stroke-width="2" />
           ${renderIcon('phone', 240 - widthOf(settings.phone, FONT_BRAND, 800, fitSize(settings.phone, FONT_BRAND, 800, 32, 18, 380)) / 2 - 44, 39, 30, '#ffffff')}
           <text x="${240 + 19}" y="56" font-family="${FONT_BRAND}" font-size="${fitSize(settings.phone, FONT_BRAND, 800, 32, 18, 380)}" font-weight="800" fill="#ffffff" text-anchor="middle">${escapeXml(settings.phone)}</text>
           ${renderIcon('chat', 720 - widthOf(settings.whatsapp, FONT_BRAND, 800, fitSize(settings.whatsapp, FONT_BRAND, 800, 32, 18, 380)) / 2 - 44, 39, 30, '#ffffff')}
@@ -709,9 +814,9 @@ export class PosterGenerator {
 
         <!-- Address -->
         <g transform="translate(24, ${addressY})">
-          <rect x="0" y="0" width="960" height="84" rx="16" fill="${theme.addressBg}" stroke="${theme.addressBorder}" stroke-width="2" />
-          ${renderIcon('pin', 469, 14, 22)}
-          <text x="480" y="63" font-family="${FONT_BRAND}" font-size="${fitSize(settings.apmcAddress, FONT_BRAND, 800, 22, 12, 900)}" font-weight="800" fill="${theme.addressText}" text-anchor="middle">${escapeXml(settings.apmcAddress)}</text>
+          <rect x="0" y="0" width="960" height="64" rx="14" fill="${theme.addressBg}" stroke="${theme.addressBorder}" stroke-width="2" />
+          ${renderIcon('pin', 471, 10, 18)}
+          <text x="480" y="48" font-family="${FONT_BRAND}" font-size="${fitSize(settings.apmcAddress, FONT_BRAND, 800, 16, 11, 900)}" font-weight="800" fill="${theme.addressText}" text-anchor="middle">${escapeXml(settings.apmcAddress)}</text>
         </g>
       </g>
     </svg>

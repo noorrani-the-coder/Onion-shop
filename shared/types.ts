@@ -127,3 +127,47 @@ export interface PosterGenerationResponse {
   reportDate: string;
   createdAt: string;
 }
+
+/* ------------------------------------------------------------------ *
+ * Arrivals board
+ *
+ * A different report from the rate poster above: how much of each
+ * commodity physically arrived in each market today, and in how many
+ * vehicles. One board carries any number of markets, each with any
+ * number of product rows.
+ * ------------------------------------------------------------------ */
+
+export interface ArrivalProduct {
+  name: string;
+  /** As printed, thousands separators kept: "46,442". */
+  arrival: string;
+  arrivalValue: number | null;
+  /** "BAGS", "QUINTALS", "KGS"... */
+  unit: string;
+  /** As printed, leading zeros kept: "07". */
+  vehicles: string;
+  vehicleValue: number | null;
+}
+
+export interface MarketArrivals {
+  name: string;
+  products: ArrivalProduct[];
+}
+
+export interface ArrivalsBoardData {
+  committeeName: string;
+  location: string;
+  /** ISO YYYY-MM-DD. */
+  reportDate: string | null;
+  /** As printed on the board: "27-08-2026". */
+  reportDateDisplay: string | null;
+  /** "THURSDAY" — derived from reportDate when the message omits it. */
+  weekday: string | null;
+  markets: MarketArrivals[];
+  /**
+   * Null means "add it up from the rows". A parsed message may instead state
+   * its own total (and its own per-market split), which always wins over the
+   * sum — the market's own arithmetic is the source of truth for the board.
+   */
+  totalVehicles: { total: number; parts: number[] } | null;
+}

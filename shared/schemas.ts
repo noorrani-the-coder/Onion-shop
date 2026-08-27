@@ -111,3 +111,43 @@ export const GeneratePosterRequestSchema = z.object({
   data: MarketReportNormalizedSchema,
   settings: ShopSettingsSchema.partial().optional()
 });
+
+/* ---------------------------- Arrivals board ---------------------------- */
+
+export const ArrivalProductSchema = z.object({
+  name: z.string().min(1),
+  arrival: z.string().min(1),
+  arrivalValue: z.number().nullable(),
+  unit: z.string().min(1),
+  vehicles: z.string(),
+  vehicleValue: z.number().nullable()
+});
+
+export const MarketArrivalsSchema = z.object({
+  name: z.string().min(1),
+  products: z.array(ArrivalProductSchema)
+});
+
+export const ArrivalsBoardDataSchema = z.object({
+  committeeName: z.string().min(1),
+  location: z.string(),
+  reportDate: z.string().nullable(),
+  reportDateDisplay: z.string().nullable(),
+  weekday: z.string().nullable(),
+  markets: z.array(MarketArrivalsSchema).min(1, 'An arrivals board needs at least one market'),
+  totalVehicles: z
+    .object({ total: z.number(), parts: z.array(z.number()) })
+    .nullable()
+});
+
+// Either hand over a raw message to parse, or structured data already corrected
+// by the user. Exactly one is required — a request with neither has nothing to
+// render, and one with both would leave which of the two wins ambiguous.
+export const GenerateArrivalsBoardSchema = z
+  .object({
+    rawMessage: z.string().optional(),
+    data: ArrivalsBoardDataSchema.optional()
+  })
+  .refine(body => Boolean(body.rawMessage) !== Boolean(body.data), {
+    message: 'Provide exactly one of "rawMessage" or "data".'
+  });

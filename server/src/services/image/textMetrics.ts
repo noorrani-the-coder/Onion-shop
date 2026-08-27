@@ -116,6 +116,14 @@ export function fitSize(
   return Math.max(minSize, Math.floor(baseSize * (availableWidth / w)));
 }
 
+/**
+ * Widths are floats scaled from a measured ratio, so a string the layout sized
+ * to fit its box *exactly* can miss a strict comparison by ~1e-14 and lose its
+ * last characters to an ellipsis it had room for. A hair of tolerance costs
+ * nothing visually and keeps those exact fits intact.
+ */
+const FIT_EPSILON = 0.01;
+
 /** Drops characters (adding an ellipsis) until `text` fits `availableWidth` at `size`. */
 export function truncateToWidth(
   text: string,
@@ -124,7 +132,7 @@ export function truncateToWidth(
   size: number,
   availableWidth: number
 ): string {
-  if (widthOf(text, family, weight, size) <= availableWidth) return text;
+  if (widthOf(text, family, weight, size) <= availableWidth + FIT_EPSILON) return text;
   // widthOf falls back to a per-character estimate for the shortened variants,
   // which is exactly the conservative direction we want here.
   let out = text;
@@ -132,4 +140,42 @@ export function truncateToWidth(
     out = out.slice(0, -1);
   }
   return out.length > 1 ? out + '…' : out;
+}
+
+/**
+ * Greedily breaks `text` into at most `maxLines` lines that each fit
+ * `availableWidth` at `size`.
+ *
+ * A word too long to fit alone is left overflowing on its own line rather than
+ * broken mid-word — a caller that cannot afford the overflow should shrink the
+ * size first and wrap second. Text needing more than `maxLines` has the
+ * remainder folded into the last line and clipped there, so the result never
+ * silently drops a word without an ellipsis to show for it.
+ */
+export function wrapToWidth(
+  text: string,
+  family: string,
+  weight: number | string,
+  size: number,
+  availableWidth: number,
+  maxLines: number
+): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+
+  const lines: string[] = [];
+  let i = 0;
+  while (i < words.length && lines.length < maxLines) {
+    let line = words[i++];
+    while (i < words.length && widthOf(line + ' ' + words[i], family, weight, size) <= availableWidth) {
+      line += ' ' + words[i++];
+    }
+    lines.push(line);
+  }
+
+  if (i < words.length) {
+    const rest = lines[lines.length - 1] + ' ' + words.slice(i).join(' ');
+    lines[lines.length - 1] = truncateToWidth(rest, family, weight, size, availableWidth);
+  }
+  return lines;
 }
