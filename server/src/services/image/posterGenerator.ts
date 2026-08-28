@@ -408,11 +408,13 @@ export class PosterGenerator {
     // Same doubling guard as truckCount below: the label prepends "SALES", and
     // stored reports often already lead with it ("Sales slow" -> "SALES SALES SLOW").
     const salesText = (report.salesStatus || 'Steady').replace(/^\s*sales\s+/i, '').trim() || 'Steady';
-    const arrivalsDisplay = report.totalArrivals?.display || '65,000+ bags';
+    const arrivalsDisplay = report.totalArrivals?.display?.trim() || '';
     // Tolerate a truckCount that already carries its unit ("325+ Trucks"), which
     // older stored reports have — otherwise the appended word doubles up.
     const truckCountBare = report.truckCount?.replace(/\s*(?:trucks?|lorr(?:y|ies))\s*$/i, '').trim();
-    const trucksDisplay = truckCountBare ? `${truckCountBare} Trucks` : '325+ Trucks';
+    const trucksDisplay = truckCountBare ? `${truckCountBare} Trucks` : '';
+    // The bar exists only if there is something true to put in it.
+    const hasArrivalsInfo = Boolean(arrivalsDisplay || trucksDisplay);
 
     const shopNameUpperEarly = settings.shopName.toUpperCase();
     const taglineUpperEarly = (settings.footerTagline || 'Onion Wholesale Merchants').toUpperCase();
@@ -468,7 +470,7 @@ export class PosterGenerator {
     const bottomPad = 12;
     const brandingH = BRAND_TOP_H + bottomBlockH + bottomPad;
 
-    const TABLES_TOP = 470;
+    const TABLES_TOP = hasArrivalsInfo ? 470 : 300;
     const LEFT_X = 36;
     const LEFT_W = 1008;
     const RIGHT_X = LEFT_X;
@@ -660,6 +662,26 @@ export class PosterGenerator {
     const CONTACT_BAR_H = 76;
     const contactNumberSize = (value: string) => fitSize(value, FONT_BRAND, 800, 38, 20, 380);
 
+    // Arrivals bar. With both figures it reads as two lines; with one, that
+    // line takes the middle of the bar instead of leaving a gap where the
+    // missing figure would have been.
+    const arrivalsBarSvg = !hasArrivalsInfo
+      ? ''
+      : `
+      <g id="arrivals-bar" transform="translate(36, 292)" filter="url(#softShadow)">
+        <rect x="0" y="0" width="1008" height="140" rx="16" fill="${theme.arrivalsBarColor}" />
+        <text x="24" y="54" font-family="${FONT_HEADING}" font-size="34" font-weight="400" fill="#ffffff" letter-spacing="0.1">APMC WISE</text>
+        <text x="24" y="96" font-family="${FONT_HEADING}" font-size="34" font-weight="400" fill="#ffffff" letter-spacing="0.1">ARRIVALS</text>
+        <line x1="360" y1="16" x2="360" y2="124" stroke="rgba(255,255,255,0.35)" stroke-width="2" />
+        ${
+          arrivalsDisplay && trucksDisplay
+            ? `<text x="392" y="60" font-family="${FONT_HEADING}" font-size="50" font-weight="400" fill="#fde047">${escapeXml(arrivalsDisplay)}</text>
+        <text x="392" y="116" font-family="${FONT_HEADING}" font-size="45" font-weight="400" fill="#fde047">${escapeXml(trucksDisplay)}</text>`
+            : `<text x="392" y="88" font-family="${FONT_HEADING}" font-size="50" font-weight="400" fill="#fde047">${escapeXml(arrivalsDisplay || trucksDisplay)}</text>`
+        }
+        ${trucksDisplay && !hasTruckPhoto ? renderIcon('truck', 912, 38, 72, '#ffffff') : ''}
+      </g>`;
+
     const initials = getInitials(settings.shopName);
     const shopNameUpper = settings.shopName.toUpperCase();
     // Banner is 764 wide starting at x=204; keep 24px of plaque either side.
@@ -760,17 +782,9 @@ export class PosterGenerator {
       </g>
 
       <!-- ============================ -->
-      <!-- 3. ARRIVALS BAR                -->
+      <!-- 3. ARRIVALS BAR (omitted when the report states neither figure) -->
       <!-- ============================ -->
-      <g id="arrivals-bar" transform="translate(36, 292)" filter="url(#softShadow)">
-        <rect x="0" y="0" width="1008" height="140" rx="16" fill="${theme.arrivalsBarColor}" />
-        <text x="24" y="54" font-family="${FONT_HEADING}" font-size="34" font-weight="400" fill="#ffffff" letter-spacing="0.1">APMC WISE</text>
-        <text x="24" y="96" font-family="${FONT_HEADING}" font-size="34" font-weight="400" fill="#ffffff" letter-spacing="0.1">ARRIVALS</text>
-        <line x1="360" y1="16" x2="360" y2="124" stroke="rgba(255,255,255,0.35)" stroke-width="2" />
-        <text x="392" y="60" font-family="${FONT_HEADING}" font-size="50" font-weight="400" fill="#fde047">${escapeXml(arrivalsDisplay)}</text>
-        <text x="392" y="116" font-family="${FONT_HEADING}" font-size="45" font-weight="400" fill="#fde047">${escapeXml(trucksDisplay)}</text>
-        ${hasTruckPhoto ? '' : renderIcon('truck', 912, 38, 72, '#ffffff')}
-      </g>
+      ${arrivalsBarSvg}
 
       <!-- ============================ -->
       <!-- 4. MAHARASHTRA ONIONS TABLE   -->
@@ -797,7 +811,7 @@ export class PosterGenerator {
 
         <!-- Shop name banner (colored plaque, not plain text-on-white, so it reads as the poster's focal point) -->
         <rect x="176" y="10" width="792" height="46" rx="14" fill="url(#shopBannerGrad)" />
-        <text x="572" y="42" font-family="${FONT_HEADING}" font-size="${shopHeaderFontSize}" font-weight="400" fill="#fde047" text-anchor="middle" letter-spacing="0.2" stroke="#00000055" stroke-width="0.5">${escapeXml(shopNameUpper)}</text>
+        <text x="572" y="42" font-family="${FONT_HEADING}" font-size="${shopHeaderFontSize}" font-weight="400" fill="#fde047" text-anchor="middle" letter-spacing="0.6" stroke="#fde047" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">${escapeXml(shopNameUpper)}</text>
         <rect x="176" y="62" width="792" height="30" rx="15" fill="${theme.pillA}" />
         <text x="572" y="83" font-family="${FONT_BRAND}" font-size="${taglineFontSize}" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">${escapeXml(taglineUpper)}</text>
 
@@ -852,7 +866,9 @@ export class PosterGenerator {
       compositeOps.push({ input: onionBufFlipped, left: CANVAS_W - ONION_W - 6, top: 16 });
     }
 
-    if (hasTruckPhoto) {
+    // The lorry is truck imagery, so it follows the truck count rather than
+    // the bar as a whole: no truck figure reported, no truck on the poster.
+    if (hasTruckPhoto && trucksDisplay) {
       const TRUCK_W = 300;
       const TRUCK_H = Math.round((TRUCK_W * 1024) / 1536);
       const truckBuf = await sharp(TRUCK_PHOTO).resize(TRUCK_W, TRUCK_H, { fit: 'contain' }).toBuffer();
