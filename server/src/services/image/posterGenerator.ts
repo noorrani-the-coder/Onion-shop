@@ -132,10 +132,11 @@ const ROW_BG_A = '#ffffff';
 const ROW_BG_B = '#f3ecd2';
 const CARD_BORDER = 'rgba(15, 23, 42, 0.18)';
 
-// Font roles (installed per-user from server/assets/fonts — see that folder's README):
-//   Main headings & numbers/prices -> Anton
-//   Table text                     -> Roboto Condensed Bold
-//   Small branding text            -> Montserrat ExtraBold
+// Font roles. All three faces are bundled in server/assets/fonts and registered
+// at startup by ./fontconfig, so every machine draws the same poster:
+//   Headings, labels and numbers -> Montserrat ExtraBold (weight 800)
+//   Table sub-text               -> Roboto Condensed Bold
+//   Small branding text          -> Montserrat ExtraBold
 const FONT_HEADING = "'Montserrat', 'Arial Black', Impact, sans-serif";
 const HEADING_WEIGHT = 800;
 const FONT_TABLE = "'Roboto Condensed', 'Segoe UI', Arial, sans-serif";
@@ -143,9 +144,13 @@ const FONT_BRAND = "'Montserrat', 'Segoe UI', Arial, sans-serif";
 
 // Row labels ("EXTRA BIG", "BIG", "MUKKAL"...) are drawn in the heavy display
 // face, uppercase, so they carry the same weight as the rate pill beside them.
-// Anton ships a single weight, so 400 already renders as a black condensed face.
 const FONT_LABEL = FONT_HEADING;
-const LABEL_WEIGHT = 400;
+// Must match HEADING_WEIGHT: the display family is only bundled at 800, so a
+// request for 400 finds nothing and drops through the stack — to Arial Black on
+// Windows, which looks right, and to a thin default on Linux, which does not.
+// That single mismatched number is what made the server's poster lighter than
+// the one on the developer's screen.
+const LABEL_WEIGHT = HEADING_WEIGHT;
 
 /** Labels render uppercase; every measurement must use the same string. */
 function labelDisplay(label: string): string {
