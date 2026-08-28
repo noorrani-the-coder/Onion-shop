@@ -1,3 +1,6 @@
+// Must precede the sharp import: fontconfig reads its configuration the first
+// time sharp is used, so the bundled poster fonts have to be registered first.
+import './fontconfig';
 import sharp from 'sharp';
 
 /**

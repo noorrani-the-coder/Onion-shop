@@ -1,3 +1,5 @@
+// Must precede the sharp import - see fontconfig.ts.
+import './fontconfig';
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
@@ -134,7 +136,8 @@ const CARD_BORDER = 'rgba(15, 23, 42, 0.18)';
 //   Main headings & numbers/prices -> Anton
 //   Table text                     -> Roboto Condensed Bold
 //   Small branding text            -> Montserrat ExtraBold
-const FONT_HEADING = "'Anton', 'Arial Black', Impact, sans-serif";
+const FONT_HEADING = "'Montserrat', 'Arial Black', Impact, sans-serif";
+const HEADING_WEIGHT = 800;
 const FONT_TABLE = "'Roboto Condensed', 'Segoe UI', Arial, sans-serif";
 const FONT_BRAND = "'Montserrat', 'Segoe UI', Arial, sans-serif";
 
@@ -261,7 +264,7 @@ function tableDividerX(rows: { label: string; value: string }[], width: number, 
   const pillRoom = (size: number) =>
     Math.min(
       ...rows.map(
-        r => width - PILL_GAP - (widthOf(r.value, FONT_HEADING, 400, size) + PILL_PAD * 2 + RATE_STROKE_W * 2)
+        r => width - PILL_GAP - (widthOf(r.value, FONT_HEADING, HEADING_WEIGHT, size) + PILL_PAD * 2 + RATE_STROKE_W * 2)
       )
     );
   const labelRoom = (size: number) =>
@@ -310,7 +313,7 @@ function tableTypeSizes(
     );
     valueSize = Math.min(
       valueSize,
-      fitSize(r.value, FONT_HEADING, 400, rowBaseValueSize(height), MIN_VALUE_SIZE, valueAvailW)
+      fitSize(r.value, FONT_HEADING, HEADING_WEIGHT, rowBaseValueSize(height), MIN_VALUE_SIZE, valueAvailW)
     );
   }
   return { labelSize, valueSize };
@@ -339,8 +342,8 @@ function heritageRow(x: number, y: number, width: number, height: number, icon: 
   const valueAvailW = rateWidth - PILL_PAD * 2 - RATE_STROKE_W * 2;
   const valueFontSize = forced
     ? forced.valueSize
-    : fitSize(value, FONT_HEADING, 400, baseValueSize, minValueSize, valueAvailW);
-  const valueText = truncateToWidth(value, FONT_HEADING, 400, valueFontSize, valueAvailW);
+    : fitSize(value, FONT_HEADING, HEADING_WEIGHT, baseValueSize, minValueSize, valueAvailW);
+  const valueText = truncateToWidth(value, FONT_HEADING, HEADING_WEIGHT, valueFontSize, valueAvailW);
 
   const subFontSize = 22;
   const subText = sublabel ? truncateToWidth(sublabel, FONT_TABLE, 700, subFontSize, labelAvailW) : null;
@@ -354,7 +357,7 @@ function heritageRow(x: number, y: number, width: number, height: number, icon: 
       ${subText ? `<text x="${labelStartX}" y="${height / 2 + 19}" font-family="${FONT_TABLE}" font-size="${subFontSize}" font-weight="700" fill="#475569">${escapeXml(subText)}</text>` : ''}
       <line x1="${dividerX}" y1="8" x2="${dividerX}" y2="${height - 8}" stroke="rgba(15,23,42,0.15)" stroke-width="1.5" />
       <rect x="${dividerX + PILL_GAP}" y="6" width="${rateWidth}" height="${height - 12}" rx="10" fill="${RATE_BG_COLOR}" stroke="${RATE_BORDER_COLOR}" stroke-width="2.5" />
-      <text x="${dividerX + PILL_GAP + rateWidth / 2}" y="${height / 2 + 11}" font-family="${FONT_HEADING}" font-size="${valueFontSize}" font-weight="400" fill="${RATE_TEXT_COLOR}" text-anchor="middle" stroke="${RATE_TEXT_COLOR}" stroke-width="${RATE_STROKE_W}" paint-order="stroke" stroke-linejoin="round">${escapeXml(valueText)}</text>
+      <text x="${dividerX + PILL_GAP + rateWidth / 2}" y="${height / 2 + 11}" font-family="${FONT_HEADING}" font-size="${valueFontSize}" font-weight="${HEADING_WEIGHT}" fill="${RATE_TEXT_COLOR}" text-anchor="middle" stroke="${RATE_TEXT_COLOR}" stroke-width="${RATE_STROKE_W}" paint-order="stroke" stroke-linejoin="round">${escapeXml(valueText)}</text>
       <line x1="0" y1="${height}" x2="${width}" y2="${height}" stroke="rgba(15,23,42,0.08)" stroke-width="1" />
     </g>
   `;
@@ -367,14 +370,14 @@ function sectionHeader(x: number, y: number, width: number, height: number, colo
   const iconSize = Math.min(32, height - 12);
   const titleX = 18 + iconSize + 10;
   const availW = width - titleX - 16;
-  const size = fitSize(title, FONT_HEADING, 400, baseSize, 22, availW);
-  const text = truncateToWidth(title, FONT_HEADING, 400, size, availW);
+  const size = fitSize(title, FONT_HEADING, HEADING_WEIGHT, baseSize, 22, availW);
+  const text = truncateToWidth(title, FONT_HEADING, HEADING_WEIGHT, size, availW);
   return `
     <g transform="translate(${x}, ${y})">
       <rect x="0" y="0" width="${width}" height="${height}" rx="12" fill="${color}" />
       <rect x="0" y="${height / 2}" width="${width}" height="${height / 2}" fill="${color}" />
       ${renderIcon(icon, 18, (height - iconSize) / 2, iconSize, '#ffffff')}
-      <text x="${titleX}" y="${height / 2 + 10}" font-family="${FONT_HEADING}" font-size="${size}" font-weight="400" fill="#ffffff" letter-spacing="0.1">${escapeXml(text)}</text>
+      <text x="${titleX}" y="${height / 2 + 10}" font-family="${FONT_HEADING}" font-size="${size}" font-weight="${HEADING_WEIGHT}" fill="#ffffff" letter-spacing="0.1">${escapeXml(text)}</text>
     </g>
   `;
 }
@@ -546,7 +549,7 @@ export class PosterGenerator {
         ${mhRowsSvg}
         <rect x="0" y="${mhTableH - mhFooterH}" width="${LEFT_W}" height="${mhFooterH}" rx="12" fill="${theme.footerBarColor}" />
         <rect x="0" y="${mhTableH - mhFooterH}" width="${LEFT_W}" height="${mhFooterH / 2}" fill="${theme.footerBarColor}" />
-        <text x="${LEFT_W / 2}" y="${mhTableH - mhFooterH / 2 + 9}" font-family="${FONT_HEADING}" font-size="30" font-weight="400" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">RATES FOR ${escapeXml(rateUnit.replace(/^Per\s*/i, '').toUpperCase())}</text>
+        <text x="${LEFT_W / 2}" y="${mhTableH - mhFooterH / 2 + 9}" font-family="${FONT_HEADING}" font-size="30" font-weight="${HEADING_WEIGHT}" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">RATES FOR ${escapeXml(rateUnit.replace(/^Per\s*/i, '').toUpperCase())}</text>
       </g>
     ` : '';
     const leftBottomY = TABLES_TOP + (hasMhRates ? mhTableH : 0);
@@ -615,8 +618,8 @@ export class PosterGenerator {
     rightColSvg += `
       <g id="weather-bar" transform="translate(${RIGHT_X}, ${rightCursorY})">
         <rect x="0" y="0" width="${RIGHT_W}" height="${weatherH}" rx="14" fill="${theme.weatherBarColor}" />
-        ${renderIcon(getWeatherIcon(weatherText), RIGHT_W / 2 - widthOf(weatherText.toUpperCase(), FONT_HEADING, 400, 28) / 2 - 40, weatherH / 2 - 15, 30, '#ffffff')}
-        <text x="${RIGHT_W / 2 + 19}" y="${weatherH / 2 + 10}" font-family="${FONT_HEADING}" font-size="35" font-weight="400" fill="#ffffff" text-anchor="middle" letter-spacing="0.1">${escapeXml(weatherText.toUpperCase())}</text>
+        ${renderIcon(getWeatherIcon(weatherText), RIGHT_W / 2 - widthOf(weatherText.toUpperCase(), FONT_HEADING, HEADING_WEIGHT, 28) / 2 - 40, weatherH / 2 - 15, 30, '#ffffff')}
+        <text x="${RIGHT_W / 2 + 19}" y="${weatherH / 2 + 10}" font-family="${FONT_HEADING}" font-size="35" font-weight="${HEADING_WEIGHT}" fill="#ffffff" text-anchor="middle" letter-spacing="0.1">${escapeXml(weatherText.toUpperCase())}</text>
       </g>
     `;
     rightCursorY += weatherH;
@@ -693,14 +696,14 @@ export class PosterGenerator {
       : `
       <g id="arrivals-bar" transform="translate(36, 292)" filter="url(#softShadow)">
         <rect x="0" y="0" width="1008" height="140" rx="16" fill="${theme.arrivalsBarColor}" />
-        <text x="24" y="54" font-family="${FONT_HEADING}" font-size="34" font-weight="400" fill="#ffffff" letter-spacing="0.1">APMC WISE</text>
-        <text x="24" y="96" font-family="${FONT_HEADING}" font-size="34" font-weight="400" fill="#ffffff" letter-spacing="0.1">ARRIVALS</text>
+        <text x="24" y="54" font-family="${FONT_HEADING}" font-size="34" font-weight="${HEADING_WEIGHT}" fill="#ffffff" letter-spacing="0.1">APMC WISE</text>
+        <text x="24" y="96" font-family="${FONT_HEADING}" font-size="34" font-weight="${HEADING_WEIGHT}" fill="#ffffff" letter-spacing="0.1">ARRIVALS</text>
         <line x1="360" y1="16" x2="360" y2="124" stroke="rgba(255,255,255,0.35)" stroke-width="2" />
         ${
           arrivalsDisplay && trucksDisplay
-            ? `<text x="392" y="60" font-family="${FONT_HEADING}" font-size="50" font-weight="400" fill="#fde047">${escapeXml(arrivalsDisplay)}</text>
-        <text x="392" y="116" font-family="${FONT_HEADING}" font-size="45" font-weight="400" fill="#fde047">${escapeXml(trucksDisplay)}</text>`
-            : `<text x="392" y="88" font-family="${FONT_HEADING}" font-size="50" font-weight="400" fill="#fde047">${escapeXml(arrivalsDisplay || trucksDisplay)}</text>`
+            ? `<text x="392" y="60" font-family="${FONT_HEADING}" font-size="50" font-weight="${HEADING_WEIGHT}" fill="#fde047">${escapeXml(arrivalsDisplay)}</text>
+        <text x="392" y="116" font-family="${FONT_HEADING}" font-size="45" font-weight="${HEADING_WEIGHT}" fill="#fde047">${escapeXml(trucksDisplay)}</text>`
+            : `<text x="392" y="88" font-family="${FONT_HEADING}" font-size="50" font-weight="${HEADING_WEIGHT}" fill="#fde047">${escapeXml(arrivalsDisplay || trucksDisplay)}</text>`
         }
         ${trucksDisplay && !hasTruckPhoto ? renderIcon('truck', 912, 38, 72, '#ffffff') : ''}
       </g>`;
@@ -708,7 +711,7 @@ export class PosterGenerator {
     const initials = getInitials(settings.shopName);
     const shopNameUpper = settings.shopName.toUpperCase();
     // Banner is 764 wide starting at x=204; keep 24px of plaque either side.
-    const shopHeaderFontSize = fitSize(shopNameUpper, FONT_HEADING, 400, 42, 20, 716);
+    const shopHeaderFontSize = fitSize(shopNameUpper, FONT_HEADING, HEADING_WEIGHT, 42, 20, 716);
 
     const taglineUpper = (settings.footerTagline || 'Onion Wholesale Merchants').toUpperCase();
     const taglineFontSize = fitSize(taglineUpper, FONT_BRAND, 800, 17, 11, 726);
@@ -742,9 +745,9 @@ export class PosterGenerator {
     // so the centred headline has to stay inside the gap between them.
     const TITLE_MAX_W = 644;
     const titleFull = `APMC ${marketShort}`;
-    const titleFontSize = fitSize(titleFull, FONT_HEADING, 400, 64, 34, TITLE_MAX_W);
-    const titleText = truncateToWidth(titleFull, FONT_HEADING, 400, titleFontSize, TITLE_MAX_W);
-    const subtitleFontSize = fitSize('ONION MARKET REPORT', FONT_HEADING, 400, 40, 24, TITLE_MAX_W);
+    const titleFontSize = fitSize(titleFull, FONT_HEADING, HEADING_WEIGHT, 64, 34, TITLE_MAX_W);
+    const titleText = truncateToWidth(titleFull, FONT_HEADING, HEADING_WEIGHT, titleFontSize, TITLE_MAX_W);
+    const subtitleFontSize = fitSize('ONION MARKET REPORT', FONT_HEADING, HEADING_WEIGHT, 40, 24, TITLE_MAX_W);
 
     const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CANVAS_W} ${CANVAS_H}" width="${CANVAS_W}" height="${CANVAS_H}">
@@ -790,8 +793,8 @@ export class PosterGenerator {
         </g>
         `}
 
-        <text x="540" y="62" font-family="${FONT_HEADING}" font-size="${titleFontSize}" font-weight="400" fill="${theme.titleColor}" text-anchor="middle" letter-spacing="0.3" stroke="#ffffff" stroke-width="2.5" paint-order="stroke">${escapeXml(titleText)}</text>
-        <text x="540" y="104" font-family="${FONT_HEADING}" font-size="${subtitleFontSize}" font-weight="400" fill="${theme.subtitleColor}" text-anchor="middle" letter-spacing="0.3">ONION MARKET REPORT</text>
+        <text x="540" y="62" font-family="${FONT_HEADING}" font-size="${titleFontSize}" font-weight="${HEADING_WEIGHT}" fill="${theme.titleColor}" text-anchor="middle" letter-spacing="0.3" stroke="#ffffff" stroke-width="2.5" paint-order="stroke">${escapeXml(titleText)}</text>
+        <text x="540" y="104" font-family="${FONT_HEADING}" font-size="${subtitleFontSize}" font-weight="${HEADING_WEIGHT}" fill="${theme.subtitleColor}" text-anchor="middle" letter-spacing="0.3">ONION MARKET REPORT</text>
       </g>
 
       <!-- ============================ -->
@@ -801,7 +804,7 @@ export class PosterGenerator {
         <rect x="0" y="0" width="1008" height="80" rx="16" fill="${theme.dateBadgeColor}" />
         <rect x="180" y="8" width="648" height="64" rx="14" fill="${RATE_BG_COLOR}" stroke="${RATE_BORDER_COLOR}" stroke-width="2.5" />
         ${renderIcon('calendar', 210, 24, 34)}
-        <text x="262" y="55" font-family="${FONT_HEADING}" font-size="40" font-weight="400" fill="${RATE_TEXT_COLOR}" letter-spacing="0.2">Date. ${escapeXml(dateDisplay)}</text>
+        <text x="262" y="55" font-family="${FONT_HEADING}" font-size="40" font-weight="${HEADING_WEIGHT}" fill="${RATE_TEXT_COLOR}" letter-spacing="0.2">Date. ${escapeXml(dateDisplay)}</text>
       </g>
 
       <!-- ============================ -->
@@ -829,12 +832,12 @@ export class PosterGenerator {
         <!-- Logo monogram (ring always drawn; photo logo composited on top when logo.png is present) -->
         <circle cx="${LOGO_CX}" cy="${LOGO_CY}" r="${LOGO_R}" fill="#fffdf6" stroke="${theme.shopNameColor}" stroke-width="3" />
         ${hasLogoPhoto ? '' : `
-        <text x="${LOGO_CX}" y="${LOGO_CY + 11}" font-family="${FONT_HEADING}" font-size="27" font-weight="400" fill="${theme.shopNameColor}" text-anchor="middle">${escapeXml(initials)}</text>
+        <text x="${LOGO_CX}" y="${LOGO_CY + 11}" font-family="${FONT_HEADING}" font-size="27" font-weight="${HEADING_WEIGHT}" fill="${theme.shopNameColor}" text-anchor="middle">${escapeXml(initials)}</text>
         `}
 
         <!-- Shop name banner (colored plaque, not plain text-on-white, so it reads as the poster's focal point) -->
         <rect x="176" y="10" width="792" height="46" rx="14" fill="url(#shopBannerGrad)" />
-        <text x="572" y="47" font-family="${FONT_HEADING}" font-size="${shopHeaderFontSize}" font-weight="400" fill="#fde047" text-anchor="middle" letter-spacing="0.6" stroke="#fde047" stroke-width="2.8" paint-order="stroke" stroke-linejoin="round">${escapeXml(shopNameUpper)}</text>
+        <text x="572" y="47" font-family="${FONT_HEADING}" font-size="${shopHeaderFontSize}" font-weight="${HEADING_WEIGHT}" fill="#fde047" text-anchor="middle" letter-spacing="0.6" stroke="#fde047" stroke-width="2.8" paint-order="stroke" stroke-linejoin="round">${escapeXml(shopNameUpper)}</text>
         <rect x="176" y="62" width="792" height="30" rx="15" fill="${theme.pillA}" />
         <text x="572" y="83" font-family="${FONT_BRAND}" font-size="${taglineFontSize}" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2" stroke="#ffffff" stroke-width="0.7" paint-order="stroke" stroke-linejoin="round">${escapeXml(taglineUpper)}</text>
 
