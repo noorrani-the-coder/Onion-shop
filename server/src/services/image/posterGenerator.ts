@@ -225,6 +225,18 @@ function rowBaseValueSize(height: number): number {
   return height > 55 ? 41 : 35;
 }
 
+/**
+ * The rate is the number a trader reads first, so it is drawn heavier than the
+ * display face alone can manage: Anton ships a single weight, and stroking the
+ * glyphs in their own colour before the fill is painted thickens them without
+ * changing the colour or the size.
+ *
+ * The stroke adds roughly this much to each side of the text. It is charged
+ * against the pill's padding in the fitting below, so a widened rate still
+ * cannot reach the pill's edge.
+ */
+const RATE_STROKE_W = 2;
+
 const MIN_LABEL_SIZE = 22;
 // A label is allowed to shrink to MIN_LABEL_SIZE to fit, but the pill column
 // gives way before it drops below this — small beats clipped for a grade name.
@@ -247,7 +259,11 @@ function tableDividerX(rows: { label: string; value: string }[], width: number, 
   const dividerFloor = labelStartX + 40;
 
   const pillRoom = (size: number) =>
-    Math.min(...rows.map(r => width - PILL_GAP - (widthOf(r.value, FONT_HEADING, 400, size) + PILL_PAD * 2)));
+    Math.min(
+      ...rows.map(
+        r => width - PILL_GAP - (widthOf(r.value, FONT_HEADING, 400, size) + PILL_PAD * 2 + RATE_STROKE_W * 2)
+      )
+    );
   const labelRoom = (size: number) =>
     Math.max(...rows.map(r => labelStartX + widthOf(labelDisplay(r.label), FONT_LABEL, LABEL_WEIGHT, size) + LABEL_GAP));
 
@@ -320,7 +336,7 @@ function heritageRow(x: number, y: number, width: number, height: number, icon: 
   const labelText = truncateToWidth(labelUpper, FONT_LABEL, LABEL_WEIGHT, labelFontSize, labelAvailW);
 
   const rateWidth = width - dividerX - PILL_GAP;
-  const valueAvailW = rateWidth - PILL_PAD * 2;
+  const valueAvailW = rateWidth - PILL_PAD * 2 - RATE_STROKE_W * 2;
   const valueFontSize = forced
     ? forced.valueSize
     : fitSize(value, FONT_HEADING, 400, baseValueSize, minValueSize, valueAvailW);
@@ -338,7 +354,7 @@ function heritageRow(x: number, y: number, width: number, height: number, icon: 
       ${subText ? `<text x="${labelStartX}" y="${height / 2 + 19}" font-family="${FONT_TABLE}" font-size="${subFontSize}" font-weight="700" fill="#475569">${escapeXml(subText)}</text>` : ''}
       <line x1="${dividerX}" y1="8" x2="${dividerX}" y2="${height - 8}" stroke="rgba(15,23,42,0.15)" stroke-width="1.5" />
       <rect x="${dividerX + PILL_GAP}" y="6" width="${rateWidth}" height="${height - 12}" rx="10" fill="${RATE_BG_COLOR}" stroke="${RATE_BORDER_COLOR}" stroke-width="2.5" />
-      <text x="${dividerX + PILL_GAP + rateWidth / 2}" y="${height / 2 + 11}" font-family="${FONT_HEADING}" font-size="${valueFontSize}" font-weight="400" fill="${RATE_TEXT_COLOR}" text-anchor="middle">${escapeXml(valueText)}</text>
+      <text x="${dividerX + PILL_GAP + rateWidth / 2}" y="${height / 2 + 11}" font-family="${FONT_HEADING}" font-size="${valueFontSize}" font-weight="400" fill="${RATE_TEXT_COLOR}" text-anchor="middle" stroke="${RATE_TEXT_COLOR}" stroke-width="${RATE_STROKE_W}" paint-order="stroke" stroke-linejoin="round">${escapeXml(valueText)}</text>
       <line x1="0" y1="${height}" x2="${width}" y2="${height}" stroke="rgba(15,23,42,0.08)" stroke-width="1" />
     </g>
   `;
@@ -465,12 +481,17 @@ export class PosterGenerator {
     const namesRowH = (hasPhoneContact || hasWhatsappContact) ? 28 : 0;
     const namesGap = namesRowH > 0 ? 6 : 0;
     const namesBlockH = namesRowH + namesGap;
+    // Heights of the two stacked bars at the foot of the branding card. They
+    // are needed here, where the card's total height is reserved, and again
+    // when it is drawn — declared once, up front.
+    const CONTACT_BAR_H = 76;
+    const ADDRESS_BAR_H = 84;
     const BRAND_TOP_H = 138;
-    const bottomBlockH = namesBlockH + 76 + 12 + 64;
+    const bottomBlockH = namesBlockH + CONTACT_BAR_H + 12 + ADDRESS_BAR_H;
     const bottomPad = 12;
     const brandingH = BRAND_TOP_H + bottomBlockH + bottomPad;
 
-    const TABLES_TOP = hasArrivalsInfo ? 470 : 300;
+    const TABLES_TOP = hasArrivalsInfo ? 456 : 300;
     const LEFT_X = 36;
     const LEFT_W = 1008;
     const RIGHT_X = LEFT_X;
@@ -659,7 +680,9 @@ export class PosterGenerator {
 
     // The phone numbers are what a trader acts on after reading the rates, so
     // they are sized as content rather than as fine print.
-    const CONTACT_BAR_H = 76;
+    // The address is how a new buyer finds the shop, so it is sized to fill its
+    // bar rather than to fit politely inside it.
+    const addressSize = fitSize(settings.apmcAddress, FONT_BRAND, 800, 28, 14, 900);
     const contactNumberSize = (value: string) => fitSize(value, FONT_BRAND, 800, 38, 20, 380);
 
     // Arrivals bar. With both figures it reads as two lines; with one, that
@@ -685,10 +708,10 @@ export class PosterGenerator {
     const initials = getInitials(settings.shopName);
     const shopNameUpper = settings.shopName.toUpperCase();
     // Banner is 764 wide starting at x=204; keep 24px of plaque either side.
-    const shopHeaderFontSize = fitSize(shopNameUpper, FONT_HEADING, 400, 34, 18, 716);
+    const shopHeaderFontSize = fitSize(shopNameUpper, FONT_HEADING, 400, 42, 20, 716);
 
     const taglineUpper = (settings.footerTagline || 'Onion Wholesale Merchants').toUpperCase();
-    const taglineFontSize = fitSize(taglineUpper, FONT_BRAND, 800, 15, 11, 730);
+    const taglineFontSize = fitSize(taglineUpper, FONT_BRAND, 800, 17, 11, 726);
 
     // Anchor the name tags + contact bar + address to the bottom of the card, so
     // short reports (tall leftover card space) don't leave a dead gap below the
@@ -811,18 +834,18 @@ export class PosterGenerator {
 
         <!-- Shop name banner (colored plaque, not plain text-on-white, so it reads as the poster's focal point) -->
         <rect x="176" y="10" width="792" height="46" rx="14" fill="url(#shopBannerGrad)" />
-        <text x="572" y="42" font-family="${FONT_HEADING}" font-size="${shopHeaderFontSize}" font-weight="400" fill="#fde047" text-anchor="middle" letter-spacing="0.6" stroke="#fde047" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">${escapeXml(shopNameUpper)}</text>
+        <text x="572" y="47" font-family="${FONT_HEADING}" font-size="${shopHeaderFontSize}" font-weight="400" fill="#fde047" text-anchor="middle" letter-spacing="0.6" stroke="#fde047" stroke-width="2.8" paint-order="stroke" stroke-linejoin="round">${escapeXml(shopNameUpper)}</text>
         <rect x="176" y="62" width="792" height="30" rx="15" fill="${theme.pillA}" />
-        <text x="572" y="83" font-family="${FONT_BRAND}" font-size="${taglineFontSize}" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">${escapeXml(taglineUpper)}</text>
+        <text x="572" y="83" font-family="${FONT_BRAND}" font-size="${taglineFontSize}" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2" stroke="#ffffff" stroke-width="0.7" paint-order="stroke" stroke-linejoin="round">${escapeXml(taglineUpper)}</text>
 
         <!-- Feature pills -->
         <g transform="translate(76, 100)">
           <rect x="0" y="0" width="270" height="34" rx="17" fill="${theme.pillA}" />
-          <text x="135" y="23" font-family="${FONT_BRAND}" font-size="14" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">BEST QUALITY</text>
+          <text x="135" y="23" font-family="${FONT_BRAND}" font-size="16" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2" stroke="#ffffff" stroke-width="0.6" paint-order="stroke" stroke-linejoin="round">BEST QUALITY</text>
           <rect x="292" y="0" width="270" height="34" rx="17" fill="${theme.pillB}" />
-          <text x="427" y="23" font-family="${FONT_BRAND}" font-size="14" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">BEST RATES</text>
+          <text x="427" y="23" font-family="${FONT_BRAND}" font-size="16" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2" stroke="#ffffff" stroke-width="0.6" paint-order="stroke" stroke-linejoin="round">BEST RATES</text>
           <rect x="584" y="0" width="270" height="34" rx="17" fill="${theme.pillA}" />
-          <text x="719" y="23" font-family="${FONT_BRAND}" font-size="14" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2">TRUSTED SERVICE</text>
+          <text x="719" y="23" font-family="${FONT_BRAND}" font-size="16" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.2" stroke="#ffffff" stroke-width="0.6" paint-order="stroke" stroke-linejoin="round">TRUSTED SERVICE</text>
         </g>
 
         <!-- Contact-person name tags (above the matching number below) -->
@@ -840,9 +863,9 @@ export class PosterGenerator {
 
         <!-- Address -->
         <g transform="translate(24, ${addressY})">
-          <rect x="0" y="0" width="960" height="64" rx="14" fill="${theme.addressBg}" stroke="${theme.addressBorder}" stroke-width="2" />
-          ${renderIcon('pin', 471, 10, 18)}
-          <text x="480" y="48" font-family="${FONT_BRAND}" font-size="${fitSize(settings.apmcAddress, FONT_BRAND, 800, 16, 11, 900)}" font-weight="800" fill="${theme.addressText}" text-anchor="middle">${escapeXml(settings.apmcAddress)}</text>
+          <rect x="0" y="0" width="960" height="${ADDRESS_BAR_H}" rx="16" fill="${theme.addressBg}" stroke="${theme.addressBorder}" stroke-width="2" />
+          ${renderIcon('pin', 470, 9, 22)}
+          <text x="480" y="${ADDRESS_BAR_H - 22}" font-family="${FONT_BRAND}" font-size="${addressSize}" font-weight="800" fill="${theme.addressText}" text-anchor="middle">${escapeXml(settings.apmcAddress)}</text>
         </g>
       </g>
     </svg>
