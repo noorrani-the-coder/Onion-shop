@@ -7,7 +7,8 @@
     "server": "npm --prefix server run dev",
     "client": "npm --prefix client run dev",
     "test": "npm --prefix server run test",
-    "build": "npm --prefix server run build && npm --prefix client run build"
+    "build": "npm --prefix server run build && npm --prefix client run build",
+    "publish:bundle": "npm --prefix client run build && node scripts/publish-bundle.cjs"
   },
   "keywords": [
     "onion-market",
@@ -22,6 +23,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "archiver": "^7.0.1",
     "concurrently": "^10.0.5"
   }
 }

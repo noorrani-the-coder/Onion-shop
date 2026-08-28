@@ -464,7 +464,7 @@ export class PosterGenerator {
     const namesGap = namesRowH > 0 ? 6 : 0;
     const namesBlockH = namesRowH + namesGap;
     const BRAND_TOP_H = 138;
-    const bottomBlockH = namesBlockH + 68 + 12 + 64;
+    const bottomBlockH = namesBlockH + 76 + 12 + 64;
     const bottomPad = 12;
     const brandingH = BRAND_TOP_H + bottomBlockH + bottomPad;
 
@@ -648,6 +648,18 @@ export class PosterGenerator {
     const footerY = brandingTop;
     const footerH = brandingH;
 
+    // Logo badge geometry, shared by the SVG ring below and the sharp composite
+    // near the end of this function. Both must agree or the photo sits off its
+    // ring; keep them reading from here rather than repeating the numbers.
+    const LOGO_CX = 86;
+    const LOGO_CY = 58;
+    const LOGO_R = 42;
+
+    // The phone numbers are what a trader acts on after reading the rates, so
+    // they are sized as content rather than as fine print.
+    const CONTACT_BAR_H = 76;
+    const contactNumberSize = (value: string) => fitSize(value, FONT_BRAND, 800, 38, 20, 380);
+
     const initials = getInitials(settings.shopName);
     const shopNameUpper = settings.shopName.toUpperCase();
     // Banner is 764 wide starting at x=204; keep 24px of plaque either side.
@@ -662,7 +674,7 @@ export class PosterGenerator {
     // overflows the card.
     const contactY = Math.max(topBlockBottom + 20 + namesBlockH, footerH - bottomBlockH - bottomPad);
     const namesY = contactY - namesBlockH;
-    const addressY = contactY + 80;
+    const addressY = contactY + 88;
     const useWarehousePhoto = hasWarehousePhoto && (namesY - (topBlockBottom + 20)) >= 40;
     const warehouseBandTop = topBlockBottom + 20;
     const warehouseBandH = Math.max(0, namesY - 10 - warehouseBandTop);
@@ -778,9 +790,9 @@ export class PosterGenerator {
         <rect x="0" y="0" width="1008" height="${footerH}" rx="20" fill="#fffdf6" stroke="${CARD_BORDER}" stroke-width="2.5" filter="url(#softShadow)" />
 
         <!-- Logo monogram (ring always drawn; photo logo composited on top when logo.png is present) -->
-        <circle cx="86" cy="58" r="42" fill="#fffdf6" stroke="${theme.shopNameColor}" stroke-width="3" />
+        <circle cx="${LOGO_CX}" cy="${LOGO_CY}" r="${LOGO_R}" fill="#fffdf6" stroke="${theme.shopNameColor}" stroke-width="3" />
         ${hasLogoPhoto ? '' : `
-        <text x="86" y="70" font-family="${FONT_HEADING}" font-size="27" font-weight="400" fill="${theme.shopNameColor}" text-anchor="middle">${escapeXml(initials)}</text>
+        <text x="${LOGO_CX}" y="${LOGO_CY + 11}" font-family="${FONT_HEADING}" font-size="27" font-weight="400" fill="${theme.shopNameColor}" text-anchor="middle">${escapeXml(initials)}</text>
         `}
 
         <!-- Shop name banner (colored plaque, not plain text-on-white, so it reads as the poster's focal point) -->
@@ -804,12 +816,12 @@ export class PosterGenerator {
 
         <!-- Contact bar -->
         <g transform="translate(24, ${contactY})">
-          <rect x="0" y="0" width="960" height="68" rx="34" fill="url(#contactGrad)" />
-          <line x1="480" y1="10" x2="480" y2="58" stroke="rgba(255,255,255,0.4)" stroke-width="2" />
-          ${renderIcon('phone', 240 - widthOf(settings.phone, FONT_BRAND, 800, fitSize(settings.phone, FONT_BRAND, 800, 32, 18, 380)) / 2 - 44, 39, 30, '#ffffff')}
-          <text x="${240 + 19}" y="56" font-family="${FONT_BRAND}" font-size="${fitSize(settings.phone, FONT_BRAND, 800, 32, 18, 380)}" font-weight="800" fill="#ffffff" text-anchor="middle">${escapeXml(settings.phone)}</text>
-          ${renderIcon('chat', 720 - widthOf(settings.whatsapp, FONT_BRAND, 800, fitSize(settings.whatsapp, FONT_BRAND, 800, 32, 18, 380)) / 2 - 44, 39, 30, '#ffffff')}
-          <text x="${720 + 19}" y="56" font-family="${FONT_BRAND}" font-size="${fitSize(settings.whatsapp, FONT_BRAND, 800, 32, 18, 380)}" font-weight="800" fill="#ffffff" text-anchor="middle">${escapeXml(settings.whatsapp)}</text>
+          <rect x="0" y="0" width="960" height="${CONTACT_BAR_H}" rx="${CONTACT_BAR_H / 2}" fill="url(#contactGrad)" />
+          <line x1="480" y1="12" x2="480" y2="${CONTACT_BAR_H - 12}" stroke="rgba(255,255,255,0.4)" stroke-width="2" />
+          ${renderIcon('phone', 240 - widthOf(settings.phone, FONT_BRAND, 800, contactNumberSize(settings.phone)) / 2 - 46, CONTACT_BAR_H / 2 - 16, 32, '#ffffff')}
+          <text x="${240 + 21}" y="${CONTACT_BAR_H / 2 + contactNumberSize(settings.phone) * 0.35}" font-family="${FONT_BRAND}" font-size="${contactNumberSize(settings.phone)}" font-weight="800" fill="#ffffff" text-anchor="middle">${escapeXml(settings.phone)}</text>
+          ${renderIcon('chat', 720 - widthOf(settings.whatsapp, FONT_BRAND, 800, contactNumberSize(settings.whatsapp)) / 2 - 46, CONTACT_BAR_H / 2 - 16, 32, '#ffffff')}
+          <text x="${720 + 21}" y="${CONTACT_BAR_H / 2 + contactNumberSize(settings.whatsapp) * 0.35}" font-family="${FONT_BRAND}" font-size="${contactNumberSize(settings.whatsapp)}" font-weight="800" fill="#ffffff" text-anchor="middle">${escapeXml(settings.whatsapp)}</text>
         </g>
 
         <!-- Address -->
@@ -857,7 +869,7 @@ export class PosterGenerator {
     }
 
     if (hasLogoPhoto) {
-      const LOGO_SIZE = 96;
+      const LOGO_SIZE = LOGO_R * 2;
       const circleMaskSvg = Buffer.from(
         `<svg width="${LOGO_SIZE}" height="${LOGO_SIZE}"><circle cx="${LOGO_SIZE / 2}" cy="${LOGO_SIZE / 2}" r="${LOGO_SIZE / 2}" fill="#fff"/></svg>`
       );
@@ -875,9 +887,10 @@ export class PosterGenerator {
         .composite([{ input: circleMaskSvg, blend: 'dest-in' }])
         .png()
         .toBuffer();
-      const LOGO_CX = 36 + 100;
-      const LOGO_CY = footerY + 72;
-      compositeOps.push({ input: circularLogo, left: Math.round(LOGO_CX - LOGO_SIZE / 2), top: Math.round(LOGO_CY - LOGO_SIZE / 2) });
+      // 36 is the footer group's x offset, footerY its y offset.
+      const logoAbsX = 36 + LOGO_CX;
+      const logoAbsY = footerY + LOGO_CY;
+      compositeOps.push({ input: circularLogo, left: Math.round(logoAbsX - LOGO_SIZE / 2), top: Math.round(logoAbsY - LOGO_SIZE / 2) });
     }
 
     const svgBuffer = Buffer.from(svg);

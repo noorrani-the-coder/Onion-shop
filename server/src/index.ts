@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import reportRoutes from './routes/reportRoutes';
 import settingsRoutes from './routes/settingsRoutes';
 import arrivalsRoutes from './routes/arrivalsRoutes';
+import appUpdateRoutes from './routes/appUpdateRoutes';
 import { ENV_FILE, PUBLIC_DIR } from './paths';
 
 dotenv.config({ path: ENV_FILE });
@@ -25,11 +26,19 @@ if (!fs.existsSync(path.join(publicDir, 'posters'))) {
 }
 app.use(express.static(publicDir));
 app.use('/posters', express.static(path.join(publicDir, 'posters')));
+// Over-the-air web bundles for the Android app. Immutable once published: each
+// release gets its own filename, so a long cache is safe and phones mid-download
+// never have the file changed under them.
+app.use(
+  '/bundles',
+  express.static(path.join(publicDir, 'bundles'), { maxAge: '30d', immutable: true })
+);
 
 // API Routes
 app.use('/api/reports', reportRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/arrivals', arrivalsRoutes);
+app.use('/api/app', appUpdateRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
