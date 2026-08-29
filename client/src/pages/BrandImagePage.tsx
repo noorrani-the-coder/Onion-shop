@@ -91,7 +91,7 @@ export const BrandImagePage: React.FC<BrandImagePageProps> = ({ settings, onSave
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-5">
+    <div className="max-w-3xl mx-auto space-y-5 pb-28 md:pb-12">
       <header>
         <h1 className="text-2xl font-bold text-white">Add your details to an image</h1>
         <p className="text-slate-300 mt-1 text-sm">

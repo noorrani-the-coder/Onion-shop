@@ -61,7 +61,7 @@ export const ArrivalsVerify: React.FC<ArrivalsVerifyProps> = ({ initial, busy, o
     'bg-slate-950/70 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500/50 w-full';
 
   return (
-    <div className="mt-4 rounded-2xl border border-sky-500/30 bg-sky-950/20 p-4 space-y-4">
+    <div className="mt-4 rounded-2xl border border-sky-500/30 bg-sky-950/20 p-3 sm:p-4 space-y-4">
       <div>
         <h2 className="font-bold text-white text-sm">Check the figures</h2>
         <p className="text-xs text-slate-400 mt-1">
@@ -98,23 +98,29 @@ export const ArrivalsVerify: React.FC<ArrivalsVerifyProps> = ({ initial, busy, o
           />
           <div className="space-y-1.5">
             {market.products.map((product, pi) => (
-              <div key={pi} className="grid grid-cols-12 gap-1.5">
+              <div key={pi} className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
                 <input
-                  className={cell + ' col-span-4'}
+                  aria-label="Product"
+                  className={cell + ' col-span-6 sm:col-span-4'}
                   value={product.name}
                   onChange={e => editProduct(mi, pi, 'name', e.target.value)}
                 />
                 <input
-                  className={cell + ' col-span-3 text-right font-mono'}
+                  aria-label="Bags"
+                  inputMode="numeric"
+                  className={cell + ' col-span-2 sm:col-span-3 text-right font-mono'}
                   value={product.arrival}
                   onChange={e => editProduct(mi, pi, 'arrival', e.target.value)}
                 />
                 <input
-                  className={cell + ' col-span-3'}
+                  aria-label="Unit"
+                  className={cell + ' col-span-2 sm:col-span-3'}
                   value={product.unit}
                   onChange={e => editProduct(mi, pi, 'unit', e.target.value)}
                 />
                 <input
+                  aria-label="Vehicles"
+                  inputMode="numeric"
                   className={cell + ' col-span-2 text-right font-mono'}
                   value={product.vehicles}
                   onChange={e => editProduct(mi, pi, 'vehicles', e.target.value)}

@@ -121,19 +121,19 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
         <div className="flex items-center justify-around">
           <button
             onClick={() => setCurrentTab('dashboard')}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+            className={`flex flex-1 min-w-0 flex-col items-center gap-1 py-1 px-1 rounded-xl transition-all ${
               currentTab === 'dashboard'
                 ? 'text-emerald-400 font-bold'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <LayoutDashboard className="w-5 h-5" />
-            <span className="text-[11px]">Home</span>
+            <span className="text-[10px] leading-tight">Home</span>
           </button>
 
           <button
             onClick={() => setCurrentTab('paste')}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+            className={`flex flex-1 min-w-0 flex-col items-center gap-1 py-1 px-1 rounded-xl transition-all ${
               currentTab === 'paste' || currentTab === 'verify' || currentTab === 'preview'
                 ? 'text-emerald-400 font-bold'
                 : 'text-slate-400 hover:text-slate-200'
@@ -142,43 +142,43 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
             <div className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center -mt-2 shadow-md">
               <PlusCircle className="w-5 h-5" />
             </div>
-            <span className="text-[11px]">New Report</span>
+            <span className="text-[10px] leading-tight">New</span>
           </button>
 
           <button
             onClick={() => setCurrentTab('brand')}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+            className={`flex flex-1 min-w-0 flex-col items-center gap-1 py-1 px-1 rounded-xl transition-all ${
               currentTab === 'brand'
                 ? 'text-emerald-400 font-bold'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <ImagePlus className="w-5 h-5" />
-            <span className="text-[11px]">Brand</span>
+            <span className="text-[10px] leading-tight">Brand</span>
           </button>
 
           <button
             onClick={() => setCurrentTab('history')}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+            className={`flex flex-1 min-w-0 flex-col items-center gap-1 py-1 px-1 rounded-xl transition-all ${
               currentTab === 'history'
                 ? 'text-emerald-400 font-bold'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <History className="w-5 h-5" />
-            <span className="text-[11px]">History</span>
+            <span className="text-[10px] leading-tight">History</span>
           </button>
 
           <button
             onClick={() => setCurrentTab('settings')}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+            className={`flex flex-1 min-w-0 flex-col items-center gap-1 py-1 px-1 rounded-xl transition-all ${
               currentTab === 'settings'
                 ? 'text-emerald-400 font-bold'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <Settings className="w-5 h-5" />
-            <span className="text-[11px]">Settings</span>
+            <span className="text-[10px] leading-tight">Settings</span>
           </button>
         </div>
       </div>
