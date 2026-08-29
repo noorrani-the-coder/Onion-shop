@@ -91,6 +91,24 @@ export const api = {
   },
 
   /**
+   * Read a market report out of a photograph or screenshot.
+   *
+   * Returns the same shape as extractReport, with rawMessage set to the text
+   * that was read off the image — so the verify screen shows what the figures
+   * came from and the rest of the flow is unchanged.
+   */
+  async extractReportFromImage(file: File): Promise<ExtractionResponse> {
+    const body = new FormData();
+    body.append('image', file);
+
+    const res = await fetch(apiUrl('/api/reports/extract-image'), { method: 'POST', body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.success === false) {
+      throw new Error(data.error || 'Could not read a report from that image.');
+    }
+    return data;
+  },
+  /**
    * Wrap a picture the user picked in the shop's header and footer bands.
    *
    * Sent as multipart rather than JSON: the file goes up as bytes instead of

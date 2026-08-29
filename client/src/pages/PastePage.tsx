@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Sparkles, Clipboard, Trash2, ArrowRight, AlertCircle, Info, Zap } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Sparkles, Clipboard, Trash2, ArrowRight, AlertCircle, Info, Zap, ScanLine } from 'lucide-react';
 import { MarketReportNormalized } from '@shared/types';
 import { api } from '../services/api';
 
@@ -140,6 +140,8 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const imageInput = useRef<HTMLInputElement>(null);
+
   const handlePasteFromClipboard = async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -149,6 +151,34 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
       }
     } catch (err) {
       console.log('Clipboard access denied or unavailable', err);
+    }
+  };
+
+  /**
+   * Read the report off a picture instead of pasted text.
+   *
+   * The image is transcribed on the server and the text runs through the same
+   * extractor as a paste, so this rejoins the normal verify step rather than
+   * skipping ahead — a photographed rate can be misread, and nobody should
+   * publish one without looking at it.
+   */
+  const handleImage = async (file: File | null) => {
+    if (!file) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.extractReportFromImage(file);
+      if (response.isUnrelated) {
+        setError('That image does not look like an APMC market rate report.');
+        return;
+      }
+      setMessage(response.rawMessage || '');
+      onExtractionSuccess(response.rawMessage || '', response.data);
+    } catch (err: any) {
+      setError(err.message || 'Could not read a report from that image.');
+    } finally {
+      setLoading(false);
+      if (imageInput.current) imageInput.current.value = '';
     }
   };
 
@@ -247,6 +277,22 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
             >
               <Clipboard className="w-3.5 h-3.5" />
               Paste from Clipboard
+            </button>
+
+            <input
+              ref={imageInput}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => handleImage(e.target.files?.[0] ?? null)}
+            />
+            <button
+              onClick={() => imageInput.current?.click()}
+              disabled={loading}
+              className="text-xs font-semibold text-sky-300 hover:text-sky-200 bg-sky-500/10 hover:bg-sky-500/20 px-2.5 py-1 rounded-lg border border-sky-500/30 flex items-center gap-1 transition-colors disabled:opacity-50"
+            >
+              <ScanLine className="w-3.5 h-3.5" />
+              Read from Image
             </button>
           </div>
         </div>

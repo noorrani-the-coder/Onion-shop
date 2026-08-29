@@ -1,11 +1,87 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import { aiExtractor } from '../services/ai/aiExtractor';
+import { ImageTranscriber } from '../services/ai/imageTranscriber';
 import { PosterGenerator } from '../services/image/posterGenerator';
 import { db } from '../database/db';
 import { publishImage } from '../services/storage/imageStore';
 import { ExtractRequestSchema, GeneratePosterRequestSchema } from '../../../shared/schemas';
 
 const router = Router();
+
+const ACCEPTED_IMAGES = ['image/jpeg', 'image/png', 'image/webp'];
+
+const uploadImage = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (!ACCEPTED_IMAGES.includes(file.mimetype)) {
+      cb(new Error(`Unsupported file type ${file.mimetype}. Send a JPEG, PNG or WebP.`));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
+/** Multer's refusals are the caller's mistake, so they get 4xx JSON, not a 500 page. */
+const acceptImage = (req: Request, res: Response, next: NextFunction): void => {
+  uploadImage.single('image')(req, res, (err: unknown) => {
+    if (!err) {
+      next();
+      return;
+    }
+    if (err instanceof multer.MulterError) {
+      const tooBig = err.code === 'LIMIT_FILE_SIZE';
+      res.status(tooBig ? 413 : 400).json({
+        success: false,
+        error: tooBig ? 'That image is over the 10 MB limit.' : `Upload rejected: ${err.message}`,
+      });
+      return;
+    }
+    res.status(415).json({ success: false, error: (err as Error).message || 'Unsupported upload.' });
+  });
+};
+
+/**
+ * POST /api/reports/extract-image
+ *
+ * Reads a photographed or forwarded report and returns the same extraction the
+ * paste flow produces, so the image path rejoins the existing verify screen
+ * rather than growing a second one.
+ *
+ * The transcript comes back as `rawMessage`: it is what the figures were read
+ * from, and the operator confirming the numbers should be able to see it. No
+ * poster is produced here — nothing reaches a customer without a human
+ * checking the rates first, which matters more for a photo than for pasted
+ * text, because a smudged 3 can be read as an 8.
+ */
+router.post('/extract-image', acceptImage, async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.file?.buffer?.length) {
+      res.status(400).json({ success: false, error: 'No image was uploaded (field name must be "image").' });
+      return;
+    }
+    if (!ImageTranscriber.isConfigured) {
+      res.status(503).json({ success: false, error: 'Image reading is not configured on this server.' });
+      return;
+    }
+
+    const transcript = await ImageTranscriber.transcribe(req.file.buffer);
+    const extraction = await aiExtractor.extractMarketReport(transcript.text);
+
+    res.json({
+      ...extraction,
+      rawMessage: transcript.text,
+      transcribedFrom: transcript.source,
+    });
+  } catch (err: any) {
+    console.error('Image extraction failed:', err);
+    res.status(422).json({
+      success: false,
+      error: err.message || 'Could not read a report from that image.',
+    });
+  }
+});
 
 // POST /api/reports/extract
 router.post('/extract', async (req: Request, res: Response): Promise<void> => {
