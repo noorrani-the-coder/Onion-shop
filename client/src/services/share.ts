@@ -121,38 +121,68 @@ export function posterCaption(params: {
   return lines.join('\n');
 }
 
+export interface SaveResult {
+  outcome: ShareOutcome;
+  /** Where the file landed, when it was written to the device. */
+  location?: string;
+}
+
 /**
- * Saves an image the user is looking at.
+ * Saves an image to the device.
  *
- * A plain `<a download>` stopped working once images moved to Supabase
- * Storage: the attribute is ignored for cross-origin URLs, so the browser
- * navigates to the picture instead of saving it, and on Android the WebView
- * ignores such links altogether. Fetching the bytes first sidesteps both — the
- * object URL that results is same-origin, so `download` is honoured again.
+ * On the web a plain `<a download>` stopped working once images moved to
+ * Supabase Storage — the attribute is ignored for cross-origin URLs, so the
+ * browser navigated to the picture instead of saving it. Fetching the bytes
+ * first sidesteps that: the object URL that results is same-origin, so
+ * `download` is honoured again.
  *
- * On a phone this hands the file to the system sheet instead, which is how
- * anything actually reaches the gallery or WhatsApp from inside a WebView.
+ * On Android this writes into the public Documents folder rather than opening
+ * the share sheet. Sharing and saving are different intentions — a trader who
+ * taps Download wants the file kept, not a list of apps to send it to — and
+ * Share is its own button for the other case. If the platform refuses the
+ * write, the share sheet is offered rather than failing outright, since that
+ * still gets the file somewhere useful.
  */
-export async function saveImage(imageUrl: string, fileName: string): Promise<ShareOutcome> {
+export async function saveImage(imageUrl: string, fileName: string): Promise<SaveResult> {
   const response = await fetch(imageUrl);
   if (!response.ok) throw new Error(`Could not load the image (${response.status})`);
   const blob = await response.blob();
 
-  if (Capacitor.isNativePlatform()) {
+  if (!Capacitor.isNativePlatform()) {
+    downloadBlob(blob, fileName);
+    return { outcome: 'downloaded' };
+  }
+
+  const data = await blobToBase64(blob);
+
+  try {
+    // Documents needs permission on Android; ask only if it is not already given.
+    const status = await Filesystem.checkPermissions().catch(() => null);
+    if (status && status.publicStorage !== 'granted') {
+      await Filesystem.requestPermissions().catch(() => null);
+    }
+
+    await Filesystem.writeFile({
+      path: fileName,
+      data,
+      directory: Directory.Documents,
+      recursive: true
+    });
+    return { outcome: 'downloaded', location: `Documents/${fileName}` };
+  } catch (err) {
+    // Scoped storage refused the write. Hand it to the share sheet instead of
+    // leaving the user with nothing.
     try {
       const { uri } = await Filesystem.writeFile({
         path: fileName,
-        data: await blobToBase64(blob),
+        data,
         directory: Directory.Cache
       });
-      await Share.share({ files: [uri], dialogTitle: 'Save or share' });
-      return 'shared';
-    } catch (err) {
-      if (isCancellation(err)) return 'cancelled';
-      throw err;
+      await Share.share({ files: [uri], dialogTitle: 'Save image' });
+      return { outcome: 'shared' };
+    } catch (shareErr) {
+      if (isCancellation(shareErr)) return { outcome: 'cancelled' };
+      throw shareErr;
     }
   }
-
-  downloadBlob(blob, fileName);
-  return 'downloaded';
 }

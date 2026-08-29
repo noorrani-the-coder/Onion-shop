@@ -30,6 +30,8 @@ export const BrandImagePage: React.FC<BrandImagePageProps> = ({ settings, onSave
   const [result, setResult] = useState<Branded | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A save that says nothing looks like a save that did not happen.
+  const [saved, setSaved] = useState<string | null>(null);
 
   // Object URLs are a real allocation; release the previous one whenever the
   // picked file changes, and the last one when the screen goes away.
@@ -66,8 +68,10 @@ export const BrandImagePage: React.FC<BrandImagePageProps> = ({ settings, onSave
 
   const download = async () => {
     if (!result) return;
+    setError(null);
     try {
-      await saveImage(result.imageUrl, fileNameFor('market-update'));
+      const { outcome, location } = await saveImage(result.imageUrl, fileNameFor('market-update'));
+      if (outcome === 'downloaded') setSaved(location ? `Saved to ${location}` : 'Saved to your device');
     } catch (err) {
       setError((err as Error).message || 'Could not save the image.');
     }
@@ -159,6 +163,12 @@ export const BrandImagePage: React.FC<BrandImagePageProps> = ({ settings, onSave
           </div>
 
           <img src={result.imageUrl} alt="Branded" className="w-full rounded-xl border border-slate-700" />
+
+          {saved && (
+            <p className="mt-3 text-xs text-emerald-300 bg-emerald-950/30 border border-emerald-700/40 rounded-lg p-2.5">
+              {saved}
+            </p>
+          )}
 
           <div className="grid grid-cols-2 gap-3 mt-4">
             <button
