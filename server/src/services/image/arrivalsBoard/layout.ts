@@ -43,8 +43,11 @@ export const SIZE = {
   weekday: 38,
   marketName: 60,
   marketNameMin: 40,
-  productName: 62,
-  productNameMin: 44,
+  // Names sit just under the arrival figure. They had been scaled well below
+  // it — 33px against 46 — while their column had 386px going spare, so the
+  // limit was the scale, not the room.
+  productName: 88,
+  productNameMin: 58,
   arrival: 88,
   arrivalMin: 62,
   unit: 34,
@@ -347,6 +350,35 @@ export async function planBoard(data: ArrivalsBoardData): Promise<BoardPlan> {
   const dateBarY = y;
   y += DATE_BAR_H + SECTION_GAP;
 
+  /**
+   * One name size for the whole board, not one per row.
+   *
+   * Fitted individually, ONION comes out at 69 and BEETROOT at 46 in the same
+   * column, and the eye reads that difference as importance the data does not
+   * have. The largest size every name can carry costs the short ones a few
+   * pixels and buys one even column of type — the same reason the rate poster
+   * sizes its grade labels together.
+   */
+  const nameAvail = columns.nameW - COL_PAD * 2;
+  const nameBase = scaled(SIZE.productName, rowH, 24);
+  /**
+   * Fitted with a low floor on purpose.
+   *
+   * `fitSize` returns its floor whether or not the floor fits, so passing the
+   * comfortable minimum here made this report a size that did not fit — and the
+   * per-row backstop then re-fitted every name separately, which is exactly the
+   * ragged column this is meant to prevent (ONION 57, POTATO 48, BEETROOT 34).
+   * Asking for the size that genuinely fits gives one honest number for the
+   * whole board, and leaves the backstop with nothing to do.
+   */
+  const sharedNameSize = allProducts(data).reduce((smallest, product) => {
+    const name = product.name.toUpperCase();
+    // Sized against the longest *word*: a name wraps between words, never
+    // inside one, so the widest word is what has to fit on a line.
+    const longestWord = name.split(/\s+/).reduce((a, b) => (a.length >= b.length ? a : b), '');
+    return Math.min(smallest, fitSize(longestWord, FONT_DISPLAY, DISPLAY_WEIGHT, nameBase, 22, nameAvail));
+  }, nameBase);
+
   const markets: MarketPlan[] = data.markets.map(market => {
     const marketY = y;
     const nameSize = fitSize(
@@ -363,9 +395,7 @@ export async function planBoard(data: ArrivalsBoardData): Promise<BoardPlan> {
       const name = product.name.toUpperCase();
       const avail = columns.nameW - COL_PAD * 2;
 
-      const nameBase = scaled(SIZE.productName, rowH, 24);
-      const nameMin = scaled(SIZE.productNameMin, rowH, 22);
-      let nameSize = fitSize(name, FONT_DISPLAY, DISPLAY_WEIGHT, nameBase, nameMin, avail);
+      let nameSize = sharedNameSize;
       // Too long for one line at that size? It wraps, and the row grows to hold
       // the second line rather than the name shrinking further.
       let nameLines = wrapToWidth(name, FONT_DISPLAY, DISPLAY_WEIGHT, nameSize, avail, 2);
