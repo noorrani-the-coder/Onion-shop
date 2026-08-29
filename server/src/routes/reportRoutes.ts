@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { aiExtractor } from '../services/ai/aiExtractor';
 import { PosterGenerator } from '../services/image/posterGenerator';
 import { db } from '../database/db';
+import { publishImage } from '../services/storage/imageStore';
 import { ExtractRequestSchema, GeneratePosterRequestSchema } from '../../../shared/schemas';
 
 const router = Router();
@@ -56,6 +57,8 @@ router.post('/generate', async (req: Request, res: Response): Promise<void> => {
 
     // Render deterministic PNG
     const { fileName, absolutePath, urlPath } = await PosterGenerator.generatePoster(data, effectiveSettings);
+    // Stored against the record so it survives the next deploy wiping the disk.
+    const publishedUrl = await publishImage(fileName);
 
     // Save/update report in DB
     const record = await db.createOrUpdateReport({
@@ -63,14 +66,14 @@ router.post('/generate', async (req: Request, res: Response): Promise<void> => {
       rawMessage: rawMessage || '',
       extractedData: extractedData || data,
       editedData: data,
-      imagePath: urlPath,
+      imagePath: publishedUrl,
       reportDate: data.reportDate || undefined
     });
 
     res.json({
       success: true,
       reportId: record.id,
-      imageUrl: urlPath,
+      imageUrl: publishedUrl,
       imagePath: absolutePath,
       reportDate: record.reportDate,
       createdAt: record.createdAt,

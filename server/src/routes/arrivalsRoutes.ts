@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { parseArrivalsMessage } from '../services/parser/arrivalsParser';
 import { ArrivalsBoardGenerator } from '../services/image/arrivalsBoard/renderer';
+import { publishImage } from '../services/storage/imageStore';
 import { ArrivalsBoardData } from '../../../shared/types';
 import { ExtractRequestSchema, GenerateArrivalsBoardSchema } from '../../../shared/schemas';
 
@@ -75,10 +76,11 @@ router.post('/generate', async (req: Request, res: Response): Promise<void> => {
     }
 
     const board = await ArrivalsBoardGenerator.generate(data);
+    const publishedUrl = await publishImage(board.fileName);
 
     res.json({
       success: true,
-      imageUrl: board.urlPath,
+      imageUrl: publishedUrl,
       imagePath: board.absolutePath,
       // The canvas is data-driven, so callers must not assume a fixed size.
       width: board.width,

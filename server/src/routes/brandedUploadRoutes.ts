@@ -3,6 +3,7 @@ import multer from 'multer';
 import { BrandedUploadGenerator } from '../services/image/brandedUpload';
 import { db } from '../database/db';
 import { MarketReportNormalized } from '../../../shared/types';
+import { publishImage } from '../services/storage/imageStore';
 
 /**
  * Upload an image, get it back wrapped in the shop's header and footer.
@@ -108,6 +109,7 @@ router.post('/generate', acceptImage, async (req: Request, res: Response): Promi
 
     const settings = await db.getSettings();
     const out = await BrandedUploadGenerator.generate(req.file.buffer, settings);
+    const publishedUrl = await publishImage(out.fileName);
 
     // Saved alongside posters so History is one place, with sourceKind marking
     // what it is: a branded upload carries no rates, so the screens that read
@@ -116,14 +118,14 @@ router.post('/generate', acceptImage, async (req: Request, res: Response): Promi
       rawMessage: req.file.originalname || 'Uploaded image',
       extractedData: brandedPlaceholder(),
       editedData: brandedPlaceholder(),
-      imagePath: out.urlPath,
+      imagePath: publishedUrl,
       reportDate: new Date().toISOString().slice(0, 10),
     });
 
     res.json({
       success: true,
       reportId: record.id,
-      imageUrl: out.urlPath,
+      imageUrl: publishedUrl,
       width: out.width,
       height: out.height,
       source: out.source,
