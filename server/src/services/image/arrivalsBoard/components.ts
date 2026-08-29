@@ -333,8 +333,28 @@ export function renderBranding(
       )
     : 0;
 
-  const addressSize = fitSize(address, FONT_BODY, BODY_WEIGHT, 28, 14, avail);
-  const addressLines = wrapToWidth(address, FONT_BODY, BODY_WEIGHT, addressSize, avail, 2);
+  /**
+   * The address gets a light plaque and display weight.
+   *
+   * Set small in body weight on the dark band it was the faintest thing on the
+   * board, and it is the line a stranger reads to find the shop. Dark on cream
+   * is the strongest contrast this palette offers.
+   *
+   * Sized for the two lines it will occupy rather than the one `fitSize`
+   * assumes — measuring the whole address against a single line's width
+   * collapses it toward the floor while the second line sits empty — then
+   * stepped down while the wrap is still clipping anything.
+   */
+  const plaqueX = MARGIN + 24;
+  const plaqueW = CONTENT_W - 48;
+  const addrAvail = plaqueW - 44;
+  let addressSize = fitSize(address, FONT_DISPLAY, DISPLAY_WEIGHT, 40, 20, addrAvail * 2 - 40);
+  let addressLines = wrapToWidth(address, FONT_DISPLAY, DISPLAY_WEIGHT, addressSize, addrAvail, 2);
+  while (addressSize > 20 && addressLines.some(line => line.includes('…'))) {
+    addressSize -= 2;
+    addressLines = wrapToWidth(address, FONT_DISPLAY, DISPLAY_WEIGHT, addressSize, addrAvail, 2);
+  }
+  const plaqueH = addressLines.length > 1 ? addressSize * 2 + 34 : addressSize + 32;
 
   // Stacked from the logo down, each row placed off the one above it rather
   // than from hardcoded offsets, so a missing logo or tagline closes the gap.
@@ -362,13 +382,18 @@ export function renderBranding(
 
       ${numbersRow}
 
+      <rect x="${plaqueX}" y="${addressTop}" width="${plaqueW}" height="${plaqueH}" rx="14"
+            fill="${theme.paper}" stroke="${theme.dateChipBg}" stroke-width="3" />
       ${addressLines
         .map((line, i) =>
-          text(line, cx, addressTop + addressSize + i * (addressSize + 6), addressSize, theme.headerText, {
-            anchor: 'middle',
-            family: FONT_BODY,
-            weight: BODY_WEIGHT,
-          })
+          text(
+            line,
+            cx,
+            addressTop + (plaqueH - (addressLines.length - 1) * (addressSize + 8)) / 2 + addressSize / 3 + i * (addressSize + 8),
+            addressSize,
+            theme.productText,
+            { anchor: 'middle' }
+          )
         )
         .join('\n      ')}
     </g>

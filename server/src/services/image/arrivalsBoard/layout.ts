@@ -79,7 +79,7 @@ export const HEADER_H = 186;
 export const DATE_BAR_H = 108;
 export const MARKET_HEADER_H = 84;
 export const TOTAL_BLOCK_H = 150;
-export const BRANDING_H = 380;
+export const BRANDING_H = 430;
 export const SECTION_GAP = 16;
 export const BORDER = 4;
 
