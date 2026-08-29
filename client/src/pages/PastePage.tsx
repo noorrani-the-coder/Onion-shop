@@ -148,6 +148,24 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
   const [board, setBoard] = useState<{ imageUrl: string; width: number; height: number } | null>(null);
   // Figures read off a picture wait here for the operator to confirm them.
   const [arrivalsDraft, setArrivalsDraft] = useState<ArrivalsBoardData | null>(null);
+  const [readingImage, setReadingImage] = useState(false);
+
+  /**
+   * True while the screen belongs to a picture rather than pasted text.
+   *
+   * The paste button says "Extract & Verify" and re-runs the text extractor —
+   * meaningless mid-upload, and actively wrong next to figures already read
+   * from an image and waiting to be confirmed. The screen shows one path at a
+   * time.
+   */
+  const imageFlow = readingImage || Boolean(arrivalsDraft) || Boolean(board);
+
+  /** Editing the text by hand returns the screen to the paste flow. */
+  const editMessage = (value: string) => {
+    setMessage(value);
+    setArrivalsDraft(null);
+    setBoard(null);
+  };
 
   const handlePasteFromClipboard = async () => {
     try {
@@ -171,6 +189,7 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
    */
   const handleImage = async (file: File | null) => {
     if (!file) return;
+    setReadingImage(true);
     setLoading(true);
     setError(null);
     setBoard(null);
@@ -200,6 +219,7 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
       setError(err.message || 'Could not read a report from that image.');
     } finally {
       setLoading(false);
+      setReadingImage(false);
       if (imageInput.current) imageInput.current.value = '';
     }
   };
@@ -264,7 +284,7 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
               <button
                 key={preset.id}
                 onClick={() => {
-                  setMessage(preset.text);
+                  editMessage(preset.text);
                   setError(null);
                 }}
                 className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-900 hover:bg-emerald-950 text-slate-300 hover:text-emerald-400 border border-slate-700 hover:border-emerald-500/50 transition-colors shrink-0 active:scale-95"
@@ -298,7 +318,7 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
           <div className="flex items-center gap-2">
             {message && (
               <button
-                onClick={() => setMessage('')}
+                onClick={() => editMessage('')}
                 className="text-xs text-slate-400 hover:text-red-400 flex items-center gap-1 transition-colors px-2 py-1"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -335,7 +355,7 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
         <textarea
           rows={12}
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) => editMessage(e.target.value)}
           placeholder={`Paste your WhatsApp Onion Market Report here...\n\nExample:\nAPMC BENGALURU\nDate: 22.08.2026\nArrivals: 65,326 bags (325+ trucks)\n\nMaharashtra Onions:\nExtra Big: 4300-4500\nBig: 4000-4200\nMedium: 3000-3500\nGolta: 2500-3000\n\nVijayapura: 3000-3700\nNew Onion: 1600-3400 (7000+ bags)`}
           className="w-full bg-slate-950/80 rounded-2xl p-4 text-sm md:text-base font-mono text-slate-100 placeholder-slate-600 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-y leading-relaxed"
         />
@@ -381,7 +401,8 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
           </div>
         )}
 
-        {/* Bottom Bar: Character count & Submit Button */}
+        {/* Bottom Bar: hidden while the screen belongs to an uploaded image. */}
+        {!imageFlow && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
           <div className="text-xs text-slate-400 flex items-center gap-4">
             <span>{message.length} characters</span>
@@ -411,6 +432,7 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
             )}
           </button>
         </div>
+        )}
       </div>
 
       {/* Intelligent Features Featurette */}
