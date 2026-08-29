@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Sparkles, Clipboard, Trash2, ArrowRight, AlertCircle, Info, Zap, ScanLine } from 'lucide-react';
-import { MarketReportNormalized } from '@shared/types';
+import { ArrivalsBoardData, MarketReportNormalized } from '@shared/types';
+import { ArrivalsVerify } from '../components/ArrivalsVerify';
 import { api } from '../services/api';
 
 interface PastePageProps {
@@ -144,6 +145,8 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
   // An arrivals board is rendered here rather than sent to the rate verify
   // screen, which has no fields for bags or vehicles.
   const [board, setBoard] = useState<{ imageUrl: string; width: number; height: number } | null>(null);
+  // Figures read off a picture wait here for the operator to confirm them.
+  const [arrivalsDraft, setArrivalsDraft] = useState<ArrivalsBoardData | null>(null);
 
   const handlePasteFromClipboard = async () => {
     try {
@@ -170,6 +173,7 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
     setLoading(true);
     setError(null);
     setBoard(null);
+    setArrivalsDraft(null);
     try {
       const response = await api.extractReportFromImage(file);
       setMessage(response.rawMessage || '');
@@ -181,8 +185,8 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
        * BAGS" turned into a price and a whole market missing.
        */
       if (response.kind === 'arrivals' && response.arrivals) {
-        const built = await api.generateArrivalsBoard(response.arrivals);
-        setBoard(built);
+        // Not generated yet: a photographed figure gets checked first.
+        setArrivalsDraft(response.arrivals);
         return;
       }
 
@@ -196,6 +200,19 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
     } finally {
       setLoading(false);
       if (imageInput.current) imageInput.current.value = '';
+    }
+  };
+
+  const buildBoard = async (confirmed: ArrivalsBoardData) => {
+    setLoading(true);
+    setError(null);
+    try {
+      setBoard(await api.generateArrivalsBoard(confirmed));
+      setArrivalsDraft(null);
+    } catch (err: any) {
+      setError(err.message || 'Could not build the arrivals board.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -327,6 +344,10 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
           above so the figures can be checked against what was actually read
           before anyone forwards it on.
         */}
+        {arrivalsDraft && (
+          <ArrivalsVerify initial={arrivalsDraft} busy={loading} onGenerate={buildBoard} />
+        )}
+
         {board && (
           <div className="mt-4 rounded-2xl border border-sky-500/30 bg-sky-950/20 p-4">
             <div className="flex items-baseline justify-between mb-3">

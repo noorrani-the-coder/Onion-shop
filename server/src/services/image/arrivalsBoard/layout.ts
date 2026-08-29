@@ -35,7 +35,7 @@ export const BODY_WEIGHT = 700;
 export const SIZE = {
   committee: 62,
   committeeMin: 32,
-  location: 52,
+  location: 44,
   dateLabel: 40,
   date: 58,
   weekday: 38,
@@ -55,19 +55,28 @@ export const SIZE = {
 } as const;
 
 /**
- * Block heights. A row is deliberately tall: it holds a product visual, a name,
- * a five-digit number, a unit and a truck count, all at a size readable at a
- * glance on a phone. 300px at 1080 wide is the floor for that, not a target to
- * optimise downwards.
+ * The board is built to 9:16, the same frame as the rate poster, so both
+ * outputs look like they came from the same shop and fill a phone screen.
+ *
+ * Row height is therefore an output rather than a constant: the rows share
+ * whatever is left after the fixed blocks, so four products give tall rows and
+ * twelve give compact ones, and the board stays one screen either way. Only
+ * when rows would fall under ROW_H_MIN — where a five-digit count stops being
+ * readable at arm's length — does the canvas grow past 9:16 instead.
  */
-export const ROW_H = 300;
-export const ROW_H_WRAPPED = 360;
-export const HEADER_H = 240;
-export const DATE_BAR_H = 140;
-export const MARKET_HEADER_H = 110;
-export const TOTAL_BLOCK_H = 300;
-export const SECTION_GAP = 24;
-export const BORDER = 5;
+export const CANVAS_H_TARGET = 1920;
+export const ROW_H_MIN = 96;
+export const ROW_H_MAX = 240;
+/** The height the type scale was drawn against; sizes scale from this. */
+const ROW_H_DESIGN = 200;
+
+export const HEADER_H = 186;
+export const DATE_BAR_H = 108;
+export const MARKET_HEADER_H = 84;
+export const TOTAL_BLOCK_H = 150;
+export const BRANDING_H = 244;
+export const SECTION_GAP = 16;
+export const BORDER = 4;
 
 // Column geometry inside a row.
 export const VISUAL_W = 140;
@@ -109,6 +118,8 @@ export interface ColumnPlan {
   vehicleW: number;
   arrivalSize: number;
   vehicleSize: number;
+  unitSize: number;
+  vehLabelSize: number;
 }
 
 export interface TotalPlan {
@@ -121,6 +132,8 @@ export interface TotalPlan {
 export interface BoardPlan {
   canvasW: number;
   canvasH: number;
+  /** Where the shop branding band sits, below everything else. */
+  brandingY: number;
   committeeSize: number;
   headerY: number;
   dateBarY: number;
@@ -160,13 +173,24 @@ function widest(texts: string[], family: string, weight: number, size: number): 
  * wishes for: claiming a width the row does not have is how a label ends up
  * printed underneath the pill beside it.
  */
-function fitColumnSizes(products: ArrivalProduct[]): ColumnPlan {
+/** Type sizes are drawn against ROW_H_DESIGN and scale with the actual row. */
+function scaled(size: number, rowH: number, floor: number): number {
+  return Math.max(floor, Math.round(size * (rowH / ROW_H_DESIGN)));
+}
+
+function fitColumnSizes(products: ArrivalProduct[], rowH: number): ColumnPlan {
   const arrivals = products.map(p => p.arrival);
   const units = products.map(p => p.unit.toUpperCase());
   const vehicles = products.map(p => p.vehicles);
 
-  let arrivalSize: number = SIZE.arrival;
-  let vehicleSize: number = SIZE.vehicles;
+  let arrivalSize = scaled(SIZE.arrival, rowH, 34);
+  const arrivalFloor = scaled(SIZE.arrivalMin, rowH, 28);
+  let vehicleSize = scaled(SIZE.vehicles, rowH, 26);
+  const vehicleFloor = scaled(SIZE.vehiclesMin, rowH, 22);
+  const vehicleHardFloor = scaled(VEHICLES_HARD_MIN, rowH, 20);
+  const unitSize = scaled(SIZE.unit, rowH, 16);
+  const vehLabelSize = scaled(SIZE.vehiclesLabel, rowH, 12);
+  const nameFloor = scaled(SIZE.productNameMin, rowH, 22);
 
   // How narrow the name column may get is a property of the data, not a
   // constant: a name wraps between words but never inside one, so the widest
@@ -175,11 +199,11 @@ function fitColumnSizes(products: ArrivalProduct[]): ColumnPlan {
   // cannot starve the numbers it sits beside.
   const longestWord = products
     .flatMap(p => p.name.toUpperCase().split(/\s+/))
-    .reduce((max, word) => Math.max(max, widthOf(word, FONT_DISPLAY, DISPLAY_WEIGHT, SIZE.productNameMin)), 0);
+    .reduce((max, word) => Math.max(max, widthOf(word, FONT_DISPLAY, DISPLAY_WEIGHT, nameFloor)), 0);
   const minNameW = Math.min(Math.max(MIN_NAME_W, longestWord + COL_PAD * 2), CONTENT_W * 0.42);
 
-  const unitW = Math.max(widest(units, FONT_BODY, BODY_WEIGHT, SIZE.unit) + COL_PAD * 2, MIN_UNIT_W);
-  const vehLabelW = widthOf('VEHICLES', FONT_BODY, BODY_WEIGHT, SIZE.vehiclesLabel);
+  const unitW = Math.max(widest(units, FONT_BODY, BODY_WEIGHT, unitSize) + COL_PAD * 2, MIN_UNIT_W);
+  const vehLabelW = widthOf('VEHICLES', FONT_BODY, BODY_WEIGHT, vehLabelSize);
 
   const arrivalWidthAt = (size: number) => widest(arrivals, FONT_DISPLAY, DISPLAY_WEIGHT, size) + COL_PAD * 2;
   const vehicleWidthAt = (size: number) =>
@@ -189,19 +213,19 @@ function fitColumnSizes(products: ArrivalProduct[]): ColumnPlan {
 
   // Clamped, not just decremented: a 2px step from 56 would otherwise land on
   // 54 and quietly break the floor it was meant to respect.
-  while (nameWidthWith(arrivalSize, vehicleSize) < minNameW && vehicleSize > SIZE.vehiclesMin) {
-    vehicleSize = Math.max(SIZE.vehiclesMin, vehicleSize - 2);
+  while (nameWidthWith(arrivalSize, vehicleSize) < minNameW && vehicleSize > vehicleFloor) {
+    vehicleSize = Math.max(vehicleFloor, vehicleSize - 2);
   }
-  while (nameWidthWith(arrivalSize, vehicleSize) < minNameW && arrivalSize > SIZE.arrivalMin) {
-    arrivalSize = Math.max(SIZE.arrivalMin, arrivalSize - 2);
+  while (nameWidthWith(arrivalSize, vehicleSize) < minNameW && arrivalSize > arrivalFloor) {
+    arrivalSize = Math.max(arrivalFloor, arrivalSize - 2);
   }
   // Last resort, and the reason it exists: a long single-word product name
   // ("BEETROOT", "CUCUMBER") can still leave the name column under its own
   // floor once both numbers are at theirs. The product name outranks the
   // vehicle count in the hierarchy, so the vehicle count is what gives — below
   // its preferred floor, never below legibility.
-  while (nameWidthWith(arrivalSize, vehicleSize) < minNameW && vehicleSize > VEHICLES_HARD_MIN) {
-    vehicleSize = Math.max(VEHICLES_HARD_MIN, vehicleSize - 2);
+  while (nameWidthWith(arrivalSize, vehicleSize) < minNameW && vehicleSize > vehicleHardFloor) {
+    vehicleSize = Math.max(vehicleHardFloor, vehicleSize - 2);
   }
 
   const arrivalW = arrivalWidthAt(arrivalSize);
@@ -228,6 +252,8 @@ function fitColumnSizes(products: ArrivalProduct[]): ColumnPlan {
     vehicleW,
     arrivalSize,
     vehicleSize,
+    unitSize,
+    vehLabelSize,
   };
 }
 
@@ -272,7 +298,29 @@ function vehicleTotals(data: ArrivalsBoardData): { total: number; parts: number[
 export async function planBoard(data: ArrivalsBoardData): Promise<BoardPlan> {
   await warmTextMetrics(stringsToMeasure(data));
 
-  const columns = fitColumnSizes(allProducts(data));
+  /**
+   * Decide the row height before anything is positioned.
+   *
+   * Everything except the rows is a fixed block, so what the rows may have is
+   * simply what those leave inside a 9:16 frame — divided by however many
+   * products the report happens to carry. Clamped at both ends: tall enough
+   * that a five-digit count stays readable, and capped so a two-row report
+   * does not turn into two enormous bands.
+   */
+  const rowCount = data.markets.reduce((n, m) => n + m.products.length, 0);
+  const fixedH =
+    HEADER_H +
+    DATE_BAR_H +
+    SECTION_GAP +
+    data.markets.length * (MARKET_HEADER_H + SECTION_GAP) +
+    TOTAL_BLOCK_H +
+    SECTION_GAP +
+    BRANDING_H +
+    MARGIN;
+  const rowSpace = CANVAS_H_TARGET - fixedH;
+  const rowH = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.floor(rowSpace / Math.max(rowCount, 1))));
+
+  const columns = fitColumnSizes(allProducts(data), rowH);
   const committeeSize = fitSize(
     data.committeeName.toUpperCase(),
     FONT_DISPLAY,
@@ -304,7 +352,9 @@ export async function planBoard(data: ArrivalsBoardData): Promise<BoardPlan> {
       const name = product.name.toUpperCase();
       const avail = columns.nameW - COL_PAD * 2;
 
-      let nameSize = fitSize(name, FONT_DISPLAY, DISPLAY_WEIGHT, SIZE.productName, SIZE.productNameMin, avail);
+      const nameBase = scaled(SIZE.productName, rowH, 24);
+      const nameMin = scaled(SIZE.productNameMin, rowH, 22);
+      let nameSize = fitSize(name, FONT_DISPLAY, DISPLAY_WEIGHT, nameBase, nameMin, avail);
       // Too long for one line at that size? It wraps, and the row grows to hold
       // the second line rather than the name shrinking further.
       let nameLines = wrapToWidth(name, FONT_DISPLAY, DISPLAY_WEIGHT, nameSize, avail, 2);
@@ -321,7 +371,7 @@ export async function planBoard(data: ArrivalsBoardData): Promise<BoardPlan> {
         nameLines = wrapToWidth(name, FONT_DISPLAY, DISPLAY_WEIGHT, nameSize, avail, 2);
       }
 
-      const h = nameLines.length > 1 ? ROW_H_WRAPPED : ROW_H;
+      const h = nameLines.length > 1 ? Math.round(rowH * 1.2) : rowH;
       const plan: RowPlan = { product, y: rowY, h, nameLines, nameSize };
       rowY += h;
       return plan;
@@ -343,11 +393,15 @@ export async function planBoard(data: ArrivalsBoardData): Promise<BoardPlan> {
     total: stated?.total ?? summed.total,
     parts: stated?.parts ?? summed.parts,
   };
-  y += TOTAL_BLOCK_H + MARGIN;
+  y += TOTAL_BLOCK_H + SECTION_GAP;
+  const brandingY = y;
+  y += BRANDING_H;
 
   return {
     canvasW: CANVAS_W,
-    canvasH: Math.ceil(y),
+    // 9:16 unless the rows had to stay readable at a taller size.
+    canvasH: Math.max(CANVAS_H_TARGET, Math.ceil(y)),
+    brandingY,
     committeeSize,
     headerY,
     dateBarY,

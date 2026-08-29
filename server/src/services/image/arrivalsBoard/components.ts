@@ -1,5 +1,5 @@
 import { renderIcon, commodityIconName } from '../icons';
-import { widthOf } from '../textMetrics';
+import { widthOf, fitSize, wrapToWidth } from '../textMetrics';
 import {
   BoardPlan,
   ColumnPlan,
@@ -20,6 +20,7 @@ import {
   SIZE,
   TRUCK_W,
   VISUAL_W,
+  BRANDING_H,
 } from './layout';
 
 /**
@@ -122,10 +123,10 @@ export function renderHeader(plan: BoardPlan, committeeName: string, location: s
     <g id="board-header">
       <rect x="0" y="${plan.headerY}" width="${CANVAS_W}" height="${HEADER_H}" fill="${theme.headerBg}" />
       <rect x="0" y="${plan.headerY + HEADER_H - 10}" width="${CANVAS_W}" height="10" fill="${theme.dateChipBg}" />
-      ${text(committeeName.toUpperCase(), CANVAS_W / 2, plan.headerY + 96, plan.committeeSize, theme.headerText, {
+      ${text(committeeName.toUpperCase(), CANVAS_W / 2, plan.headerY + 76, plan.committeeSize, theme.headerText, {
         anchor: 'middle',
       })}
-      ${text(location.toUpperCase(), CANVAS_W / 2, plan.headerY + 178, SIZE.location, theme.dateChipBg, {
+      ${text(location.toUpperCase(), CANVAS_W / 2, plan.headerY + 138, SIZE.location, theme.dateChipBg, {
         anchor: 'middle',
       })}
     </g>
@@ -184,18 +185,21 @@ export function renderMarketHeader(market: MarketPlan, theme: BoardTheme): strin
 export function renderVehicleCell(row: RowPlan, columns: ColumnPlan, theme: BoardTheme): string {
   const cx = columns.vehicleX;
   const cy = row.y;
-  const truckY = cy + row.h / 2 - TRUCK_W / 2;
-  const numberX = cx + COL_PAD + TRUCK_W + 12;
-  const numberW = columns.vehicleW - COL_PAD * 2 - TRUCK_W - 12;
+  // The truck scales with the row so a compact board does not carry a truck
+  // taller than the count beside it.
+  const truckSize = Math.min(TRUCK_W, Math.round(row.h * 0.44));
+  const truckY = cy + row.h / 2 - truckSize / 2;
+  const numberX = cx + COL_PAD + truckSize + 12;
+  const numberW = columns.vehicleW - COL_PAD * 2 - truckSize - 12;
 
   return `
     <g id="vehicle-cell">
       <rect x="${cx}" y="${cy}" width="${columns.vehicleW}" height="${row.h}" fill="${theme.vehicleBg}" />
-      ${renderIcon('truck', cx + COL_PAD, truckY, TRUCK_W, theme.vehicleText)}
-      ${text(row.product.vehicles, numberX + numberW / 2, cy + row.h / 2 + 8, columns.vehicleSize, theme.vehicleText, {
+      ${renderIcon('truck', cx + COL_PAD, truckY, truckSize, theme.vehicleText)}
+      ${text(row.product.vehicles, numberX + numberW / 2, cy + row.h / 2 - columns.vehLabelSize / 2 + columns.vehicleSize / 3, columns.vehicleSize, theme.vehicleText, {
         anchor: 'middle',
       })}
-      ${text('VEHICLES', numberX + numberW / 2, cy + row.h / 2 + 50, SIZE.vehiclesLabel, theme.vehicleText, {
+      ${text('VEHICLES', numberX + numberW / 2, cy + row.h / 2 + columns.vehicleSize / 2 + columns.vehLabelSize, columns.vehLabelSize, theme.vehicleText, {
         anchor: 'middle',
         family: FONT_BODY,
         weight: BODY_WEIGHT,
@@ -213,7 +217,7 @@ export function renderVehicleCell(row: RowPlan, columns: ColumnPlan, theme: Boar
 export function renderProductRow(row: RowPlan, columns: ColumnPlan, index: number, theme: BoardTheme): string {
   const bg = index % 2 === 0 ? theme.rowA : theme.rowB;
   const midY = row.y + row.h / 2;
-  const visualSize = VISUAL_W - 18;
+  const visualSize = Math.min(VISUAL_W - 18, Math.round(row.h * 0.62));
   const icon = commodityIconName(row.product.name);
 
   // A single line sits on the row's centre; two lines straddle it.
@@ -232,7 +236,7 @@ export function renderProductRow(row: RowPlan, columns: ColumnPlan, index: numbe
       ${text(row.product.arrival, columns.arrivalX + columns.arrivalW / 2, midY + columns.arrivalSize / 3, columns.arrivalSize, theme.arrivalText, {
         anchor: 'middle',
       })}
-      ${text(row.product.unit.toUpperCase(), columns.unitX + columns.unitW / 2, midY + SIZE.unit / 3, SIZE.unit, theme.unitText, {
+      ${text(row.product.unit.toUpperCase(), columns.unitX + columns.unitW / 2, midY + columns.unitSize / 3, columns.unitSize, theme.unitText, {
         anchor: 'middle',
         family: FONT_BODY,
         weight: BODY_WEIGHT,
@@ -271,6 +275,93 @@ export function renderTotalVehicles(total: TotalPlan, theme: BoardTheme): string
       ${text(String(total.total), MARGIN + CONTENT_W - 40, y + total.h / 2 + SIZE.totalNumber / 3, SIZE.totalNumber, theme.totalNumberText, {
         anchor: 'end',
       })}
+    </g>
+  `;
+}
+
+/**
+ * Shop branding, closing the board.
+ *
+ * The committee's figures are the content; this says who is passing them on.
+ * It carries the same four things the rate poster's footer does — mark, name,
+ * both numbers, address — so a trader who receives both recognises one shop
+ * rather than two designs.
+ */
+export function renderBranding(
+  plan: BoardPlan,
+  settings: {
+    shopName?: string;
+    footerTagline?: string;
+    phone?: string;
+    whatsapp?: string;
+    apmcAddress?: string;
+  },
+  theme: BoardTheme,
+  hasLogo: boolean
+): string {
+  const y = plan.brandingY;
+  const name = (settings.shopName || '').toUpperCase();
+  const tagline = (settings.footerTagline || '').toUpperCase();
+  const numbers = [settings.phone, settings.whatsapp].filter((n): n is string => Boolean(n && n.trim()));
+  const address = settings.apmcAddress || '';
+
+  const logoBox = hasLogo ? 116 : 0;
+  const textX = MARGIN + (hasLogo ? logoBox + 20 : 20);
+  const textAvail = CANVAS_W - textX - MARGIN - 16;
+
+  // Tracking widens what is drawn without widening what was measured, so it is
+  // charged against the space before fitting — the same trap that clipped the
+  // branded-upload tagline.
+  const TRACKING = 0.4;
+  const nameSize = fitSize(name, FONT_DISPLAY, DISPLAY_WEIGHT, 54, 26, textAvail - name.length * TRACKING);
+  const taglineSize = tagline
+    ? fitSize(tagline, FONT_BODY, BODY_WEIGHT, 22, 12, textAvail - tagline.length * TRACKING)
+    : 0;
+
+  const numberSize = numbers.length
+    ? numbers.reduce(
+        (smallest, n) =>
+          Math.min(
+            smallest,
+            fitSize(n, FONT_BODY, BODY_WEIGHT, 30, 16, (CONTENT_W - 60) / numbers.length - 40)
+          ),
+        30
+      )
+    : 0;
+  const addressSize = fitSize(address, FONT_BODY, BODY_WEIGHT, 24, 13, CONTENT_W - 90);
+  const addressLines = wrapToWidth(address, FONT_BODY, BODY_WEIGHT, addressSize, CONTENT_W - 90, 2);
+
+  const numbersRow = numbers
+    .map((n, i) => {
+      const slot = (CONTENT_W - 40) / numbers.length;
+      const cx = MARGIN + 20 + slot * i + slot / 2;
+      return text(n, cx, y + 138, numberSize, theme.totalNumberText, {
+        anchor: 'middle',
+        family: FONT_BODY,
+        weight: BODY_WEIGHT,
+      });
+    })
+    .join('\n      ');
+
+  return `
+    <g id="shop-branding">
+      <rect x="${MARGIN}" y="${y}" width="${CONTENT_W}" height="${BRANDING_H}" rx="14" fill="${theme.headerBg}" />
+      <rect x="${MARGIN}" y="${y}" width="${CONTENT_W}" height="6" fill="${theme.dateChipBg}" />
+
+      ${text(name, textX, y + 58, nameSize, theme.dateChipBg)}
+      ${tagline ? text(tagline, textX, y + 58 + taglineSize + 14, taglineSize, theme.headerText, { family: FONT_BODY, weight: BODY_WEIGHT }) : ''}
+
+      ${numbersRow}
+
+      ${addressLines
+        .map((line, i) =>
+          text(line, CANVAS_W / 2, y + 180 + i * (addressSize + 6), addressSize, theme.headerText, {
+            anchor: 'middle',
+            family: FONT_BODY,
+            weight: BODY_WEIGHT,
+          })
+        )
+        .join('\n      ')}
     </g>
   `;
 }

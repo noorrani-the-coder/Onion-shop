@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { parseArrivalsMessage } from '../services/parser/arrivalsParser';
 import { ArrivalsBoardGenerator } from '../services/image/arrivalsBoard/renderer';
 import { publishImage } from '../services/storage/imageStore';
+import { db } from '../database/db';
 import { ArrivalsBoardData } from '../../../shared/types';
 import { ExtractRequestSchema, GenerateArrivalsBoardSchema } from '../../../shared/schemas';
 
@@ -75,7 +76,8 @@ router.post('/generate', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const board = await ArrivalsBoardGenerator.generate(data);
+    const settings = await db.getSettings();
+    const board = await ArrivalsBoardGenerator.generate(data, settings);
     const publishedUrl = await publishImage(board.fileName);
 
     res.json({
