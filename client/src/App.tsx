@@ -8,6 +8,7 @@ import { PreviewPage } from './pages/PreviewPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { BrandImagePage } from './pages/BrandImagePage';
+import { SaveToast } from './components/SaveToast';
 import { MarketReportNormalized, ReportRecord, ShopSettings } from '@shared/types';
 import { api } from './services/api';
 import { apiUrl } from './services/config';
@@ -92,6 +93,7 @@ export const App: React.FC = () => {
   return (
     <div className="min-h-screen text-slate-100 flex flex-col relative overflow-x-hidden">
       <BackgroundAnimation />
+      <SaveToast />
       <div className="relative z-10 flex flex-col min-h-screen">
         <Navbar
           currentTab={currentTab}

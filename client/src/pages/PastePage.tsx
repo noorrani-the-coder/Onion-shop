@@ -149,7 +149,6 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
   // Figures read off a picture wait here for the operator to confirm them.
   const [arrivalsDraft, setArrivalsDraft] = useState<ArrivalsBoardData | null>(null);
   const [readingImage, setReadingImage] = useState(false);
-  const [saved, setSaved] = useState<string | null>(null);
 
   /**
    * True while the screen belongs to a picture rather than pasted text.
@@ -391,8 +390,7 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
               onClick={async () => {
                 setError(null);
                 try {
-                  const { outcome, location } = await saveImage(board.imageUrl, 'apmc-arrivals-board.png');
-                  if (outcome === 'downloaded') setSaved(location ? `Saved to ${location}` : 'Saved to your device');
+                  await saveImage(board.imageUrl, 'apmc-arrivals-board.png');
                 } catch (err) {
                   setError((err as Error).message || 'Could not save the board.');
                 }
@@ -401,9 +399,6 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
             >
               Download board
             </button>
-            {saved && (
-              <p className="mt-2 text-xs text-emerald-300 text-center">{saved}</p>
-            )}
           </div>
         )}
 

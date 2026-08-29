@@ -128,6 +128,24 @@ export interface SaveResult {
 }
 
 /**
+ * Announced whenever an image is saved, so one listener can confirm it.
+ *
+ * A window event rather than a return value the screens each handle: five
+ * different buttons start a download, and every one of them would otherwise
+ * need its own copy of the confirmation.
+ */
+export const SAVE_EVENT = 'app:image-saved';
+
+export type SaveEventDetail = SaveResult;
+
+function announceSave(detail: SaveResult): SaveResult {
+  if (detail.outcome !== 'cancelled') {
+    window.dispatchEvent(new CustomEvent<SaveEventDetail>(SAVE_EVENT, { detail }));
+  }
+  return detail;
+}
+
+/**
  * Saves an image to the device.
  *
  * On the web a plain `<a download>` stopped working once images moved to
@@ -150,7 +168,7 @@ export async function saveImage(imageUrl: string, fileName: string): Promise<Sav
 
   if (!Capacitor.isNativePlatform()) {
     downloadBlob(blob, fileName);
-    return { outcome: 'downloaded' };
+    return announceSave({ outcome: 'downloaded' });
   }
 
   const data = await blobToBase64(blob);
@@ -168,7 +186,7 @@ export async function saveImage(imageUrl: string, fileName: string): Promise<Sav
       directory: Directory.Documents,
       recursive: true
     });
-    return { outcome: 'downloaded', location: `Documents/${fileName}` };
+    return announceSave({ outcome: 'downloaded', location: `Documents/${fileName}` });
   } catch (err) {
     // Scoped storage refused the write. Hand it to the share sheet instead of
     // leaving the user with nothing.
@@ -179,7 +197,7 @@ export async function saveImage(imageUrl: string, fileName: string): Promise<Sav
         directory: Directory.Cache
       });
       await Share.share({ files: [uri], dialogTitle: 'Save image' });
-      return { outcome: 'shared' };
+      return announceSave({ outcome: 'shared' });
     } catch (shareErr) {
       if (isCancellation(shareErr)) return { outcome: 'cancelled' };
       throw shareErr;
