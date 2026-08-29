@@ -1,7 +1,7 @@
 import React from 'react';
 import { PlusCircle, FileText, Download, Share2, Eye, Calendar, Sparkles, ArrowRight, Store } from 'lucide-react';
 import { ReportRecord, ShopSettings } from '@shared/types';
-import { sharePosterImage, posterCaption } from '../services/share';
+import { sharePosterImage, posterCaption, saveImage } from '../services/share';
 
 interface DashboardPageProps {
   reports: ReportRecord[];
@@ -251,16 +251,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     </button>
 
                     {report.imagePath && (
-                      <a
-                        href={report.imagePath}
-                        download={`onion-poster-${dateDisplay.replace(/\./g, '-')}.png`}
-                        onClick={(e) => e.stopPropagation()}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          saveImage(report.imagePath!, `onion-poster-${dateDisplay.replace(/\./g, '-')}.png`).catch(() => {});
+                        }}
                         className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
                         title="Download PNG"
                       >
                         <Download className="w-3.5 h-3.5" />
                         <span>PNG</span>
-                      </a>
+                      </button>
                     )}
                   </div>
                 </div>

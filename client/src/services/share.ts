@@ -120,3 +120,39 @@ export function posterCaption(params: {
   if (params.arrivals) lines.push(`📦 Arrivals: ${params.arrivals}`);
   return lines.join('\n');
 }
+
+/**
+ * Saves an image the user is looking at.
+ *
+ * A plain `<a download>` stopped working once images moved to Supabase
+ * Storage: the attribute is ignored for cross-origin URLs, so the browser
+ * navigates to the picture instead of saving it, and on Android the WebView
+ * ignores such links altogether. Fetching the bytes first sidesteps both — the
+ * object URL that results is same-origin, so `download` is honoured again.
+ *
+ * On a phone this hands the file to the system sheet instead, which is how
+ * anything actually reaches the gallery or WhatsApp from inside a WebView.
+ */
+export async function saveImage(imageUrl: string, fileName: string): Promise<ShareOutcome> {
+  const response = await fetch(imageUrl);
+  if (!response.ok) throw new Error(`Could not load the image (${response.status})`);
+  const blob = await response.blob();
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { uri } = await Filesystem.writeFile({
+        path: fileName,
+        data: await blobToBase64(blob),
+        directory: Directory.Cache
+      });
+      await Share.share({ files: [uri], dialogTitle: 'Save or share' });
+      return 'shared';
+    } catch (err) {
+      if (isCancellation(err)) return 'cancelled';
+      throw err;
+    }
+  }
+
+  downloadBlob(blob, fileName);
+  return 'downloaded';
+}

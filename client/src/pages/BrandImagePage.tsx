@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Upload, Image as ImageIcon, Share2, Download, RefreshCw, AlertTriangle } from 'lucide-react';
 import { ShopSettings } from '@shared/types';
 import { api } from '../services/api';
-import { sharePosterImage } from '../services/share';
+import { sharePosterImage, saveImage } from '../services/share';
 
 interface BrandImagePageProps {
   settings: ShopSettings | null;
@@ -64,12 +64,24 @@ export const BrandImagePage: React.FC<BrandImagePageProps> = ({ settings, onSave
     }
   };
 
+  const download = async () => {
+    if (!result) return;
+    try {
+      await saveImage(result.imageUrl, fileNameFor('market-update'));
+    } catch (err) {
+      setError((err as Error).message || 'Could not save the image.');
+    }
+  };
+
+  const fileNameFor = (suffix: string) =>
+    `${(settings?.shopName || 'shop').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${suffix}.png`;
+
   const share = async () => {
     if (!result) return;
     try {
       await sharePosterImage({
         imageUrl: result.imageUrl,
-        fileName: `${(settings?.shopName || 'shop').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-market-update.png`,
+        fileName: fileNameFor('market-update'),
         title: settings?.shopName || 'Market update',
         text: [settings?.shopName, settings?.phone].filter(Boolean).join(' • ')
       });
@@ -156,14 +168,13 @@ export const BrandImagePage: React.FC<BrandImagePageProps> = ({ settings, onSave
             >
               <Share2 className="w-4 h-4" /> Share
             </button>
-            <a
-              href={result.imageUrl}
-              download
+            <button
+              onClick={download}
               className="py-3 rounded-xl font-bold text-slate-100 bg-slate-700 hover:bg-slate-600
                          flex items-center justify-center gap-2"
             >
               <Download className="w-4 h-4" /> Download
-            </a>
+            </button>
           </div>
         </div>
       )}

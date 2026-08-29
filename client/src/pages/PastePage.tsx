@@ -3,6 +3,7 @@ import { Sparkles, Clipboard, Trash2, ArrowRight, AlertCircle, Info, Zap, ScanLi
 import { ArrivalsBoardData, MarketReportNormalized } from '@shared/types';
 import { ArrivalsVerify } from '../components/ArrivalsVerify';
 import { api } from '../services/api';
+import { saveImage } from '../services/share';
 
 interface PastePageProps {
   onExtractionSuccess: (rawMessage: string, extracted: MarketReportNormalized) => void;
@@ -365,13 +366,18 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
               alt="Arrivals board"
               className="w-full rounded-xl border border-slate-700"
             />
-            <a
-              href={board.imageUrl}
-              download
-              className="mt-3 block text-center py-3 rounded-xl font-bold text-white bg-sky-600 hover:bg-sky-500"
+            <button
+              onClick={async () => {
+                try {
+                  await saveImage(board.imageUrl, 'apmc-arrivals-board.png');
+                } catch (err) {
+                  setError((err as Error).message || 'Could not save the board.');
+                }
+              }}
+              className="mt-3 w-full text-center py-3 rounded-xl font-bold text-white bg-sky-600 hover:bg-sky-500"
             >
               Download board
-            </a>
+            </button>
           </div>
         )}
 

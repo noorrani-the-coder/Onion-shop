@@ -10,7 +10,7 @@ import {
   Store
 } from 'lucide-react';
 import { ReportRecord, ShopSettings } from '@shared/types';
-import { sharePosterImage, posterCaption } from '../services/share';
+import { sharePosterImage, posterCaption, saveImage } from '../services/share';
 
 interface PreviewPageProps {
   report: ReportRecord;
@@ -65,14 +65,16 @@ export const PreviewPage: React.FC<PreviewPageProps> = ({
     }
   };
 
+  /**
+   * Fetches the bytes rather than pointing a link at them.
+   *
+   * Posters live on Supabase Storage now, and the `download` attribute is
+   * ignored for cross-origin URLs — the browser just displays the image, and
+   * the Android WebView ignores the link entirely.
+   */
   const handleDownload = () => {
     if (!imageUrl) return;
-    const link = document.createElement('a');
-    link.href = imageUrl;
-    link.download = `onion-market-report-${dateDisplay.replace(/\./g, '-')}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    saveImage(imageUrl, `onion-market-report-${dateDisplay.replace(/\./g, '-')}.png`).catch(() => {});
   };
 
   return (

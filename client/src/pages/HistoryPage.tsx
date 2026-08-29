@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { ReportRecord } from '@shared/types';
 import { api } from '../services/api';
-import { sharePosterImage, posterCaption } from '../services/share';
+import { sharePosterImage, posterCaption, saveImage } from '../services/share';
 
 interface HistoryPageProps {
   reports: ReportRecord[];
@@ -221,15 +221,16 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                   </button>
 
                   {report.imagePath && (
-                    <a
-                      href={report.imagePath}
-                      download={`onion-poster-${dateDisplay.replace(/\./g, '-')}.png`}
-                      onClick={(e) => e.stopPropagation()}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        saveImage(report.imagePath!, `onion-poster-${dateDisplay.replace(/\./g, '-')}.png`).catch(() => {});
+                      }}
                       className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition-colors"
                       title="Download PNG"
                     >
                       <Download className="w-4 h-4" />
-                    </a>
+                    </button>
                   )}
 
                   <button
