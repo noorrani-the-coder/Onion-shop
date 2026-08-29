@@ -1,9 +1,9 @@
 import React from 'react';
-import { PlusCircle, LayoutDashboard, History, Settings } from 'lucide-react';
+import { PlusCircle, LayoutDashboard, History, Settings, ImagePlus } from 'lucide-react';
 
 interface NavbarProps {
-  currentTab: 'dashboard' | 'paste' | 'verify' | 'preview' | 'history' | 'settings';
-  setCurrentTab: (tab: 'dashboard' | 'paste' | 'verify' | 'preview' | 'history' | 'settings') => void;
+  currentTab: 'dashboard' | 'paste' | 'verify' | 'preview' | 'history' | 'settings' | 'brand';
+  setCurrentTab: (tab: 'dashboard' | 'paste' | 'verify' | 'preview' | 'history' | 'settings' | 'brand') => void;
   hasActiveReport: boolean;
 }
 
@@ -64,6 +64,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
             >
               <PlusCircle className="w-4 h-4" />
               New Report
+            </button>
+
+            <button
+              onClick={() => setCurrentTab('brand')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+                currentTab === 'brand'
+                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-900'
+              }`}
+            >
+              <ImagePlus className="w-4 h-4" />
+              Brand Image
             </button>
 
             <button
@@ -131,6 +143,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
               <PlusCircle className="w-5 h-5" />
             </div>
             <span className="text-[11px]">New Report</span>
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('brand')}
+            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+              currentTab === 'brand'
+                ? 'text-emerald-400 font-bold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <ImagePlus className="w-5 h-5" />
+            <span className="text-[11px]">Brand</span>
           </button>
 
           <button

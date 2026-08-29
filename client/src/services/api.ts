@@ -88,5 +88,30 @@ export const api = {
     if (!res.ok) throw new Error('Failed to save settings');
     const data = await res.json();
     return data.settings;
+  },
+
+  /**
+   * Wrap a picture the user picked in the shop's header and footer bands.
+   *
+   * Sent as multipart rather than JSON: the file goes up as bytes instead of
+   * a base64 string a third larger, which matters on a mandi phone's data.
+   * No Content-Type header is set on purpose — the browser has to add its own
+   * multipart boundary, and setting it by hand breaks the upload.
+   */
+  async brandImage(file: File): Promise<{
+    imageUrl: string;
+    width: number;
+    height: number;
+    source: { width: number; height: number; format: string };
+  }> {
+    const body = new FormData();
+    body.append('image', file);
+
+    const res = await fetch(apiUrl('/api/branded/generate'), { method: 'POST', body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Could not add your details to that image.');
+    }
+    return { ...data, imageUrl: apiUrl(data.imageUrl) };
   }
 };

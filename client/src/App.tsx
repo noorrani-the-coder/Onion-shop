@@ -7,11 +7,12 @@ import { VerifyPage } from './pages/VerifyPage';
 import { PreviewPage } from './pages/PreviewPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { BrandImagePage } from './pages/BrandImagePage';
 import { MarketReportNormalized, ReportRecord, ShopSettings } from '@shared/types';
 import { api } from './services/api';
 import { apiUrl } from './services/config';
 
-type Tab = 'dashboard' | 'paste' | 'verify' | 'preview' | 'history' | 'settings';
+type Tab = 'dashboard' | 'paste' | 'verify' | 'preview' | 'history' | 'settings' | 'brand';
 
 export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<Tab>('dashboard');
@@ -131,6 +132,8 @@ export const App: React.FC = () => {
             onNewReport={handleNewReport}
           />
         )}
+
+        {currentTab === 'brand' && <BrandImagePage settings={settings} />}
 
         {currentTab === 'history' && (
           <HistoryPage

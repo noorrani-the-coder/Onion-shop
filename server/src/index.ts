@@ -8,6 +8,7 @@ import settingsRoutes from './routes/settingsRoutes';
 import arrivalsRoutes from './routes/arrivalsRoutes';
 import appUpdateRoutes from './routes/appUpdateRoutes';
 import fontDiagnosticRoutes from './routes/fontDiagnosticRoutes';
+import brandedUploadRoutes from './routes/brandedUploadRoutes';
 import { ENV_FILE, PUBLIC_DIR } from './paths';
 
 dotenv.config({ path: ENV_FILE });
@@ -41,6 +42,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/arrivals', arrivalsRoutes);
 app.use('/api/app', appUpdateRoutes);
 app.use('/api/app', fontDiagnosticRoutes);
+app.use('/api/branded', brandedUploadRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
