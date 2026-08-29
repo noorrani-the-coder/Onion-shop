@@ -21,9 +21,11 @@ export const CANVAS_W = 1080;
 export const MARGIN = 32;
 export const CONTENT_W = CANVAS_W - MARGIN * 2;
 
-export const FONT_DISPLAY = "'Anton', 'Arial Black', Impact, sans-serif";
+// The same display face as the rate poster, so both read as one shop. Anton
+// is condensed and sits noticeably narrower beside it.
+export const FONT_DISPLAY = "'Montserrat', 'Arial Black', Impact, sans-serif";
 export const FONT_BODY = "'Roboto Condensed', 'Segoe UI', Arial, sans-serif";
-export const DISPLAY_WEIGHT = 400;
+export const DISPLAY_WEIGHT = 800;
 export const BODY_WEIGHT = 700;
 
 /**
@@ -33,24 +35,24 @@ export const BODY_WEIGHT = 700;
  * `fitColumnSizes` — they are not "small" sizes, just less enormous ones.
  */
 export const SIZE = {
-  committee: 62,
+  committee: 58,
   committeeMin: 32,
   location: 44,
   dateLabel: 40,
-  date: 58,
+  date: 60,
   weekday: 38,
-  marketName: 58,
+  marketName: 60,
   marketNameMin: 40,
-  productName: 58,
+  productName: 62,
   productNameMin: 44,
-  arrival: 82,
+  arrival: 88,
   arrivalMin: 62,
   unit: 34,
-  vehicles: 70,
+  vehicles: 74,
   vehiclesMin: 55,
   vehiclesLabel: 26,
-  totalLabel: 54,
-  totalNumber: 118,
+  totalLabel: 56,
+  totalNumber: 126,
   totalParts: 34,
 } as const;
 
@@ -68,13 +70,13 @@ export const CANVAS_H_TARGET = 1920;
 export const ROW_H_MIN = 96;
 export const ROW_H_MAX = 240;
 /** The height the type scale was drawn against; sizes scale from this. */
-const ROW_H_DESIGN = 200;
+const ROW_H_DESIGN = 190;
 
 export const HEADER_H = 186;
 export const DATE_BAR_H = 108;
 export const MARKET_HEADER_H = 84;
 export const TOTAL_BLOCK_H = 150;
-export const BRANDING_H = 244;
+export const BRANDING_H = 380;
 export const SECTION_GAP = 16;
 export const BORDER = 4;
 
@@ -316,7 +318,7 @@ export async function planBoard(data: ArrivalsBoardData): Promise<BoardPlan> {
     TOTAL_BLOCK_H +
     SECTION_GAP +
     BRANDING_H +
-    MARGIN;
+    MARGIN * 2;
   const rowSpace = CANVAS_H_TARGET - fixedH;
   const rowH = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.floor(rowSpace / Math.max(rowCount, 1))));
 
@@ -330,7 +332,16 @@ export async function planBoard(data: ArrivalsBoardData): Promise<BoardPlan> {
     CONTENT_W - 40
   );
 
+  /**
+   * The shop comes first, the committee's figures after.
+   *
+   * Whoever receives this should see who sent it before they read what it
+   * says — the board is the shop's daily message, not a reprint of the
+   * committee's notice.
+   */
   let y = 0;
+  const brandingY = y;
+  y += BRANDING_H + SECTION_GAP;
   const headerY = y;
   y += HEADER_H;
   const dateBarY = y;
@@ -393,9 +404,7 @@ export async function planBoard(data: ArrivalsBoardData): Promise<BoardPlan> {
     total: stated?.total ?? summed.total,
     parts: stated?.parts ?? summed.parts,
   };
-  y += TOTAL_BLOCK_H + SECTION_GAP;
-  const brandingY = y;
-  y += BRANDING_H;
+  y += TOTAL_BLOCK_H + MARGIN;
 
   return {
     canvasW: CANVAS_W,

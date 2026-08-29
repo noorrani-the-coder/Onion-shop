@@ -14,6 +14,7 @@ import {
   renderProductRow,
   renderTotalVehicles,
   renderBranding,
+  BRAND_LOGO,
 } from './components';
 
 /**
@@ -109,7 +110,7 @@ export class ArrivalsBoardGenerator {
 
     // The mark is a photograph, so it is composited rather than drawn: an SVG
     // cannot embed it without inlining the whole file as base64.
-    const LOGO = 116;
+    const LOGO = BRAND_LOGO;
     let pipeline = sharp(Buffer.from(svg));
     if (hasLogo) {
       const mask = Buffer.from(
@@ -129,7 +130,7 @@ export class ArrivalsBoardGenerator {
         .png()
         .toBuffer();
       pipeline = pipeline.composite([
-        { input: round, left: MARGIN + 16, top: plan.brandingY + 22 },
+        { input: round, left: Math.round((CANVAS_W - BRAND_LOGO) / 2), top: plan.brandingY + 22 },
       ]);
     }
 

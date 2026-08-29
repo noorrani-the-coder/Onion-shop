@@ -89,6 +89,10 @@ export const DEFAULT_THEME: BoardTheme = {
   totalNumberText: '#ffe14a',
 };
 
+/** Diameter of the shop mark in the branding band, shared with the renderer
+ * that composites the photograph onto it. */
+export const BRAND_LOGO = 118;
+
 export function escapeXml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -280,12 +284,15 @@ export function renderTotalVehicles(total: TotalPlan, theme: BoardTheme): string
 }
 
 /**
- * Shop branding, closing the board.
+ * Shop branding, opening the board.
  *
- * The committee's figures are the content; this says who is passing them on.
- * It carries the same four things the rate poster's footer does — mark, name,
- * both numbers, address — so a trader who receives both recognises one shop
- * rather than two designs.
+ * It sits above the committee's heading because this is the shop's daily
+ * message, not a reprint of the committee's notice — whoever receives it
+ * should see who sent it before they read what it says.
+ *
+ * Everything is centred on one axis: mark, name, trade line, both numbers,
+ * address. A left-aligned block with the logo beside it reads as a letterhead;
+ * centred and stacked reads as a masthead, which is what this is.
  */
 export function renderBranding(
   plan: BoardPlan,
@@ -300,62 +307,64 @@ export function renderBranding(
   hasLogo: boolean
 ): string {
   const y = plan.brandingY;
+  const cx = CANVAS_W / 2;
   const name = (settings.shopName || '').toUpperCase();
   const tagline = (settings.footerTagline || '').toUpperCase();
   const numbers = [settings.phone, settings.whatsapp].filter((n): n is string => Boolean(n && n.trim()));
   const address = settings.apmcAddress || '';
 
-  const logoBox = hasLogo ? 116 : 0;
-  const textX = MARGIN + (hasLogo ? logoBox + 20 : 20);
-  const textAvail = CANVAS_W - textX - MARGIN - 16;
+  const avail = CONTENT_W - 80;
 
-  // Tracking widens what is drawn without widening what was measured, so it is
-  // charged against the space before fitting — the same trap that clipped the
-  // branded-upload tagline.
+  /**
+   * Tracking widens what is drawn without widening what was measured, so it is
+   * charged against the space before fitting — the trap that clipped the
+   * branded upload's tagline off the right edge.
+   */
   const TRACKING = 0.4;
-  const nameSize = fitSize(name, FONT_DISPLAY, DISPLAY_WEIGHT, 54, 26, textAvail - name.length * TRACKING);
+  const nameSize = fitSize(name, FONT_DISPLAY, DISPLAY_WEIGHT, 68, 30, avail - name.length * TRACKING);
   const taglineSize = tagline
-    ? fitSize(tagline, FONT_BODY, BODY_WEIGHT, 22, 12, textAvail - tagline.length * TRACKING)
+    ? fitSize(tagline, FONT_BODY, BODY_WEIGHT, 26, 13, avail - tagline.length * TRACKING)
     : 0;
 
   const numberSize = numbers.length
     ? numbers.reduce(
-        (smallest, n) =>
-          Math.min(
-            smallest,
-            fitSize(n, FONT_BODY, BODY_WEIGHT, 30, 16, (CONTENT_W - 60) / numbers.length - 40)
-          ),
-        30
+        (smallest, n) => Math.min(smallest, fitSize(n, FONT_DISPLAY, DISPLAY_WEIGHT, 38, 18, avail / numbers.length - 40)),
+        38
       )
     : 0;
-  const addressSize = fitSize(address, FONT_BODY, BODY_WEIGHT, 24, 13, CONTENT_W - 90);
-  const addressLines = wrapToWidth(address, FONT_BODY, BODY_WEIGHT, addressSize, CONTENT_W - 90, 2);
+
+  const addressSize = fitSize(address, FONT_BODY, BODY_WEIGHT, 28, 14, avail);
+  const addressLines = wrapToWidth(address, FONT_BODY, BODY_WEIGHT, addressSize, avail, 2);
+
+  // Stacked from the logo down, each row placed off the one above it rather
+  // than from hardcoded offsets, so a missing logo or tagline closes the gap.
+  const logoBottom = y + (hasLogo ? 20 + BRAND_LOGO : 14);
+  const nameBaseline = logoBottom + nameSize + 6;
+  const taglineBaseline = tagline ? nameBaseline + taglineSize + 12 : nameBaseline;
+  const numbersBaseline = taglineBaseline + numberSize + 18;
+  const addressTop = numbersBaseline + 10;
 
   const numbersRow = numbers
     .map((n, i) => {
-      const slot = (CONTENT_W - 40) / numbers.length;
-      const cx = MARGIN + 20 + slot * i + slot / 2;
-      return text(n, cx, y + 138, numberSize, theme.totalNumberText, {
-        anchor: 'middle',
-        family: FONT_BODY,
-        weight: BODY_WEIGHT,
-      });
+      const slot = avail / numbers.length;
+      const centre = MARGIN + 40 + slot * i + slot / 2;
+      return text(n, centre, numbersBaseline, numberSize, theme.dateChipBg, { anchor: 'middle' });
     })
     .join('\n      ');
 
   return `
     <g id="shop-branding">
-      <rect x="${MARGIN}" y="${y}" width="${CONTENT_W}" height="${BRANDING_H}" rx="14" fill="${theme.headerBg}" />
-      <rect x="${MARGIN}" y="${y}" width="${CONTENT_W}" height="6" fill="${theme.dateChipBg}" />
+      <rect x="${MARGIN}" y="${y}" width="${CONTENT_W}" height="${BRANDING_H}" rx="16" fill="${theme.headerBg}" />
+      <rect x="${MARGIN}" y="${y + BRANDING_H - 6}" width="${CONTENT_W}" height="6" fill="${theme.dateChipBg}" />
 
-      ${text(name, textX, y + 58, nameSize, theme.dateChipBg)}
-      ${tagline ? text(tagline, textX, y + 58 + taglineSize + 14, taglineSize, theme.headerText, { family: FONT_BODY, weight: BODY_WEIGHT }) : ''}
+      ${text(name, cx, nameBaseline, nameSize, theme.dateChipBg, { anchor: 'middle', letterSpacing: TRACKING })}
+      ${tagline ? text(tagline, cx, taglineBaseline, taglineSize, theme.headerText, { anchor: 'middle', family: FONT_BODY, weight: BODY_WEIGHT, letterSpacing: TRACKING }) : ''}
 
       ${numbersRow}
 
       ${addressLines
         .map((line, i) =>
-          text(line, CANVAS_W / 2, y + 180 + i * (addressSize + 6), addressSize, theme.headerText, {
+          text(line, cx, addressTop + addressSize + i * (addressSize + 6), addressSize, theme.headerText, {
             anchor: 'middle',
             family: FONT_BODY,
             weight: BODY_WEIGHT,
