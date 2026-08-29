@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { aiExtractor } from '../services/ai/aiExtractor';
 import { ImageTranscriber } from '../services/ai/imageTranscriber';
+import { parseArrivalsMessage } from '../services/parser/arrivalsParser';
 import { PosterGenerator } from '../services/image/posterGenerator';
 import { db } from '../database/db';
 import { publishImage } from '../services/storage/imageStore';
@@ -67,10 +68,36 @@ router.post('/extract-image', acceptImage, async (req: Request, res: Response): 
     }
 
     const transcript = await ImageTranscriber.transcribe(req.file.buffer);
-    const extraction = await aiExtractor.extractMarketReport(transcript.text);
 
+    /**
+     * Two different reports arrive as pictures, and they are not the same data.
+     *
+     * A rate report lists grades against price ranges; an arrivals board lists
+     * products against bag counts and vehicle counts. Reading the second with
+     * the rate extractor is not a near miss — "26,776 BAGS" comes back as a
+     * rate of 776, the second market disappears and every vehicle count is
+     * lost. So the transcript decides which pipeline it belongs to before
+     * anything tries to structure it.
+     */
+    const arrivals = parseArrivalsMessage(transcript.text);
+    const looksLikeArrivals = arrivals.data.markets.some(m => m.products.length > 0);
+
+    if (looksLikeArrivals) {
+      res.json({
+        success: true,
+        kind: 'arrivals',
+        arrivals: arrivals.data,
+        warnings: arrivals.warnings,
+        rawMessage: transcript.text,
+        transcribedFrom: transcript.source,
+      });
+      return;
+    }
+
+    const extraction = await aiExtractor.extractMarketReport(transcript.text);
     res.json({
       ...extraction,
+      kind: 'rates',
       rawMessage: transcript.text,
       transcribedFrom: transcript.source,
     });

@@ -141,6 +141,9 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
   const [error, setError] = useState<string | null>(null);
 
   const imageInput = useRef<HTMLInputElement>(null);
+  // An arrivals board is rendered here rather than sent to the rate verify
+  // screen, which has no fields for bags or vehicles.
+  const [board, setBoard] = useState<{ imageUrl: string; width: number; height: number } | null>(null);
 
   const handlePasteFromClipboard = async () => {
     try {
@@ -166,13 +169,27 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
     if (!file) return;
     setLoading(true);
     setError(null);
+    setBoard(null);
     try {
       const response = await api.extractReportFromImage(file);
-      if (response.isUnrelated) {
-        setError('That image does not look like an APMC market rate report.');
+      setMessage(response.rawMessage || '');
+
+      /**
+       * Two different reports arrive as pictures. An arrivals board lists bag
+       * and vehicle counts and has no rates at all, so it goes to its own
+       * renderer — pushed through the rate flow it comes back with "26,776
+       * BAGS" turned into a price and a whole market missing.
+       */
+      if (response.kind === 'arrivals' && response.arrivals) {
+        const built = await api.generateArrivalsBoard(response.arrivals);
+        setBoard(built);
         return;
       }
-      setMessage(response.rawMessage || '');
+
+      if (response.isUnrelated) {
+        setError('That image does not look like an APMC market report.');
+        return;
+      }
       onExtractionSuccess(response.rawMessage || '', response.data);
     } catch (err: any) {
       setError(err.message || 'Could not read a report from that image.');
@@ -304,6 +321,38 @@ export const PastePage: React.FC<PastePageProps> = ({ onExtractionSuccess }) => 
           placeholder={`Paste your WhatsApp Onion Market Report here...\n\nExample:\nAPMC BENGALURU\nDate: 22.08.2026\nArrivals: 65,326 bags (325+ trucks)\n\nMaharashtra Onions:\nExtra Big: 4300-4500\nBig: 4000-4200\nMedium: 3000-3500\nGolta: 2500-3000\n\nVijayapura: 3000-3700\nNew Onion: 1600-3400 (7000+ bags)`}
           className="w-full bg-slate-950/80 rounded-2xl p-4 text-sm md:text-base font-mono text-slate-100 placeholder-slate-600 border border-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-y leading-relaxed"
         />
+
+        {/*
+          An arrivals board read from a picture. Shown next to the transcript
+          above so the figures can be checked against what was actually read
+          before anyone forwards it on.
+        */}
+        {board && (
+          <div className="mt-4 rounded-2xl border border-sky-500/30 bg-sky-950/20 p-4">
+            <div className="flex items-baseline justify-between mb-3">
+              <h2 className="font-bold text-white text-sm">Arrivals board ready</h2>
+              <span className="text-[11px] font-mono text-slate-400">
+                {board.width}×{board.height}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mb-3">
+              This report lists bags and vehicles, not rates, so it was built as an arrivals board.
+              Check the figures against the text above before sharing.
+            </p>
+            <img
+              src={board.imageUrl}
+              alt="Arrivals board"
+              className="w-full rounded-xl border border-slate-700"
+            />
+            <a
+              href={board.imageUrl}
+              download
+              className="mt-3 block text-center py-3 rounded-xl font-bold text-white bg-sky-600 hover:bg-sky-500"
+            >
+              Download board
+            </a>
+          </div>
+        )}
 
         {/* Bottom Bar: Character count & Submit Button */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">

@@ -1,5 +1,6 @@
 import { apiUrl } from './config';
 import {
+  ArrivalsBoardData,
   ExtractionResponse,
   MarketReportNormalized,
   PosterGenerationResponse,
@@ -97,7 +98,9 @@ export const api = {
    * that was read off the image — so the verify screen shows what the figures
    * came from and the rest of the flow is unchanged.
    */
-  async extractReportFromImage(file: File): Promise<ExtractionResponse> {
+  async extractReportFromImage(
+    file: File
+  ): Promise<ExtractionResponse & { kind?: 'rates' | 'arrivals'; arrivals?: ArrivalsBoardData }> {
     const body = new FormData();
     body.append('image', file);
 
@@ -107,6 +110,27 @@ export const api = {
       throw new Error(data.error || 'Could not read a report from that image.');
     }
     return data;
+  },
+
+  /**
+   * Render an arrivals board (products, bags, vehicles) — a different report
+   * from the rate poster, with its own data and its own renderer.
+   */
+  async generateArrivalsBoard(data: ArrivalsBoardData): Promise<{
+    imageUrl: string;
+    width: number;
+    height: number;
+  }> {
+    const res = await fetch(apiUrl('/api/arrivals/generate'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data })
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.success) {
+      throw new Error(json.error || 'Could not build the arrivals board.');
+    }
+    return { ...json, imageUrl: apiUrl(json.imageUrl) };
   },
   /**
    * Wrap a picture the user picked in the shop's header and footer bands.
