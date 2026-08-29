@@ -6,6 +6,8 @@ import { sharePosterImage } from '../services/share';
 
 interface BrandImagePageProps {
   settings: ShopSettings | null;
+  /** Called once the branded image is saved, so History picks it up. */
+  onSaved?: () => void;
 }
 
 interface Branded {
@@ -21,7 +23,7 @@ interface Branded {
  * trader wants to forward it on with their own name and number attached. The
  * board itself is left exactly as received — nothing here reads or rewrites it.
  */
-export const BrandImagePage: React.FC<BrandImagePageProps> = ({ settings }) => {
+export const BrandImagePage: React.FC<BrandImagePageProps> = ({ settings, onSaved }) => {
   const fileInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
@@ -54,6 +56,7 @@ export const BrandImagePage: React.FC<BrandImagePageProps> = ({ settings }) => {
     try {
       const branded = await api.brandImage(file);
       setResult(branded);
+      onSaved?.();
     } catch (err: any) {
       setError(err.message || 'Something went wrong adding your details.');
     } finally {

@@ -140,10 +140,15 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         <div className="space-y-3">
           {filteredReports.map(report => {
             const dateDisplay = report.editedData.reportDateDisplay || report.reportDate;
-            const bigRate = report.editedData.maharashtra.big?.display || '4000-4200';
-            const extraBig = report.editedData.maharashtra.extraBig?.display;
-            const arrivals = report.editedData.totalArrivals?.display || '65,000 bags';
-            const trucks = report.editedData.truckCount || '300+ Trucks';
+            // An image the user branded carries no rates. Records written before
+            // sourceKind existed have none either, so undefined means "rates".
+            const isBranded = report.editedData.sourceKind === 'branded-upload';
+            // No invented fallbacks: a figure shown here should be one the
+            // report actually stated, or nothing at all.
+            const bigRate = report.editedData.maharashtra?.big?.display;
+            const extraBig = report.editedData.maharashtra?.extraBig?.display;
+            const arrivals = report.editedData.totalArrivals?.display;
+            const trucks = report.editedData.truckCount;
 
             return (
               <div
@@ -171,23 +176,32 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                       <span className="text-sm md:text-base font-extrabold text-white">
                         {dateDisplay}
                       </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                        {report.editedData.market || 'APMC BENGALURU'}
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          isBranded
+                            ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                            : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                        }`}
+                      >
+                        {isBranded ? 'BRANDED IMAGE' : report.editedData.market || 'APMC BENGALURU'}
                       </span>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-300">
-                      <span className="font-semibold text-amber-400">
-                        Big: ₹{bigRate}
-                      </span>
-                      {extraBig && (
-                        <span className="text-slate-400">
-                          Extra Big: ₹{extraBig}
-                        </span>
+                      {isBranded ? (
+                        <span className="text-slate-400">Your details added to an uploaded image</span>
+                      ) : (
+                        <>
+                          {bigRate && <span className="font-semibold text-amber-400">Big: ₹{bigRate}</span>}
+                          {extraBig && <span className="text-slate-400">Extra Big: ₹{extraBig}</span>}
+                          {arrivals && (
+                            <span className="text-slate-400">
+                              Arrivals: {arrivals}
+                              {trucks ? ` (${trucks})` : ''}
+                            </span>
+                          )}
+                        </>
                       )}
-                      <span className="text-slate-400">
-                        Arrivals: {arrivals} ({trucks})
-                      </span>
                     </div>
 
                     <p className="text-[11px] text-slate-500 line-clamp-1 max-w-md font-mono">

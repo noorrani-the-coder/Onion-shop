@@ -29,7 +29,11 @@ const CANVAS_W = 1080;
 const CANVAS_H_MIN = 1920;
 
 const HEADER_H = 268;
-const FOOTER_H = 252;
+const FOOTER_H = 300;
+
+// Footer rows: the numbers sit on the first, the address plaque below them.
+const PHONE_BASELINE = 76;
+const PLAQUE_TOP = 108;
 
 const FONT_DISPLAY = "'Montserrat', 'Arial Black', Impact, sans-serif";
 const DISPLAY_WEIGHT = 800;
@@ -55,6 +59,8 @@ const COLORS = {
   rule: '#fcd34d',
   text: '#ffffff',
   paper: '#f7f1de',
+  plaque: '#fdf3d1',
+  plaqueText: '#5a1010',
 };
 
 function escapeXml(s: string): string {
@@ -143,29 +149,56 @@ function headerSvg(settings: ShopSettings, hasLogo: boolean): string {
 </svg>`;
 }
 
-/** Bottom band: where the shop is, and the number to call. */
+/**
+ * Bottom band: both numbers to call, then where the shop is.
+ *
+ * Each element gets its own full-width row. Side by side they cannot all be
+ * large: a 55-character APMC address beside a 58px number does not fit across
+ * 1080px, and the address lost — squeezed to 29px and still clipped mid-word.
+ * A truncated address is a customer who cannot find the shop.
+ *
+ * The address then sits on a light plaque rather than in white on the dark
+ * band. Against a maroon ground the same type has to work much harder to read
+ * at a glance on a phone; dark text on cream is the strongest contrast the
+ * palette offers, and this is the line a stranger squints at.
+ */
 function footerSvg(settings: ShopSettings): string {
   const address = settings.apmcAddress || '';
-  const phone = settings.phone || '';
+  const numbers = [settings.phone, settings.whatsapp].filter((n): n is string => Boolean(n && n.trim()));
 
-  /**
-   * The number and the address each get their own full-width row.
-   *
-   * Side by side they cannot both be large: a 55-character APMC address next to
-   * a 56px phone number does not fit across 1080px, and the address lost first —
-   * squeezed to 29px and still clipped to "Yeshwanthpur, Bengalur…". A truncated
-   * address is a customer who cannot find the shop, so each gets a row instead.
-   */
-  const GUTTER = 32;
+  const GUTTER = 28;
 
-  const phoneIcon = 54;
-  const phoneSize = fitSize(phone, FONT_DISPLAY, DISPLAY_WEIGHT, 58, 30, CANVAS_W - GUTTER * 2 - phoneIcon - 18);
-  const phoneW = widthOf(phone, FONT_DISPLAY, DISPLAY_WEIGHT, phoneSize);
-  const phoneX = Math.round((CANVAS_W - (phoneIcon + 18 + phoneW)) / 2);
+  // Both numbers share the row, so each is sized against its own half.
+  const numIcon = 46;
+  const gapBetween = 34;
+  const perNumber = (CANVAS_W - GUTTER * 2 - gapBetween * (numbers.length - 1)) / Math.max(numbers.length, 1);
+  const numSize = numbers.reduce(
+    (smallest, n) => Math.min(smallest, fitSize(n, FONT_DISPLAY, DISPLAY_WEIGHT, 52, 26, perNumber - numIcon - 14)),
+    52
+  );
+  const numberBlocks = numbers.map(n => ({
+    text: n,
+    width: numIcon + 14 + widthOf(n, FONT_DISPLAY, DISPLAY_WEIGHT, numSize),
+  }));
+  const numbersW = numberBlocks.reduce((sum, b) => sum + b.width, 0) + gapBetween * (numberBlocks.length - 1);
+  let cursorX = Math.round((CANVAS_W - numbersW) / 2);
+  const numbersSvg = numberBlocks
+    .map(block => {
+      const x = cursorX;
+      cursorX += block.width + gapBetween;
+      return (
+        `${renderIcon('phone', x, PHONE_BASELINE - numIcon + 8, numIcon, COLORS.gold)}` +
+        `<text x="${x + numIcon + 14}" y="${PHONE_BASELINE}" font-family="${FONT_DISPLAY}" font-size="${numSize}" ` +
+        `font-weight="${DISPLAY_WEIGHT}" fill="${COLORS.text}">${escapeXml(block.text)}</text>`
+      );
+    })
+    .join('\n  ');
 
-  const addrIcon = 40;
-  const addrX = GUTTER + addrIcon + 14;
-  const addrAvail = CANVAS_W - addrX - GUTTER;
+  const plaqueX = GUTTER;
+  const plaqueW = CANVAS_W - GUTTER * 2;
+  const addrIcon = 42;
+  const addrX = plaqueX + 20 + addrIcon + 14;
+  const addrAvail = plaqueX + plaqueW - 20 - addrX;
   /**
    * Sized for the two lines it will actually occupy, not the one line `fitSize`
    * assumes: measuring the whole address against a single line's width collapses
@@ -173,32 +206,40 @@ function footerSvg(settings: ShopSettings): string {
    * step down only if a wrapped line still spills.
    */
   const ADDR_LINES = 2;
-  let addrSize = fitSize(address, FONT_DISPLAY, DISPLAY_WEIGHT, 38, 20, addrAvail * ADDR_LINES - 40);
-  let lines = wrapToWidth(address, FONT_DISPLAY, DISPLAY_WEIGHT, addrSize, addrAvail, ADDR_LINES);
-  while (
-    addrSize > 20 &&
-    lines.some(line => widthOf(line, FONT_DISPLAY, DISPLAY_WEIGHT, addrSize) > addrAvail)
-  ) {
+  const wrapAt = (size: number) => wrapToWidth(address, FONT_DISPLAY, DISPLAY_WEIGHT, size, addrAvail, ADDR_LINES);
+  /**
+   * Shrink while the address is still being *clipped*, not while it overflows.
+   *
+   * `wrapToWidth` truncates the last line with an ellipsis when the text needs
+   * more lines than it is given — and a truncated line fits by definition, so
+   * an overflow test passes and the loop exits happily on "Bengaluru - 5…".
+   * The ellipsis is the signal that something was lost; a postcode dropped from
+   * a shop's address is exactly the kind of quiet damage worth looping over.
+   */
+  let addrSize = fitSize(address, FONT_DISPLAY, DISPLAY_WEIGHT, 44, 22, addrAvail * ADDR_LINES - 40);
+  let lines = wrapAt(addrSize);
+  while (addrSize > 22 && lines.some(line => line.includes('…'))) {
     addrSize -= 2;
-    lines = wrapToWidth(address, FONT_DISPLAY, DISPLAY_WEIGHT, addrSize, addrAvail, ADDR_LINES);
+    lines = wrapAt(addrSize);
   }
 
-  const phoneBaseline = 82;
-  const addrTop = 116;
+  const plaqueH = lines.length > 1 ? addrSize * 2 + 46 : addrSize + 44;
+  const plaqueY = PLAQUE_TOP;
+  const firstBaseline = plaqueY + (plaqueH - (lines.length - 1) * (addrSize + 10)) / 2 + addrSize / 3;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${CANVAS_W}" height="${FOOTER_H}">
   <rect x="0" y="0" width="${CANVAS_W}" height="${FOOTER_H}" fill="${COLORS.band}" />
   <rect x="0" y="0" width="${CANVAS_W}" height="7" fill="${COLORS.rule}" />
 
-  ${renderIcon('phone', phoneX, phoneBaseline - phoneIcon + 10, phoneIcon, COLORS.gold)}
-  <text x="${phoneX + phoneIcon + 18}" y="${phoneBaseline}" font-family="${FONT_DISPLAY}"
-        font-size="${phoneSize}" font-weight="${DISPLAY_WEIGHT}" fill="${COLORS.text}">${escapeXml(phone)}</text>
+  ${numbersSvg}
 
-  ${renderIcon('pin', GUTTER, addrTop + (lines.length > 1 ? 16 : 0), addrIcon, COLORS.gold)}
+  <rect x="${plaqueX}" y="${plaqueY}" width="${plaqueW}" height="${plaqueH}" rx="16"
+        fill="${COLORS.plaque}" stroke="${COLORS.gold}" stroke-width="3" />
+  ${renderIcon('pin', plaqueX + 20, plaqueY + plaqueH / 2 - addrIcon / 2, addrIcon, COLORS.band)}
   ${lines
     .map(
       (line, i) =>
-        `<text x="${addrX}" y="${addrTop + addrSize + i * (addrSize + 10)}" font-family="${FONT_DISPLAY}" font-size="${addrSize}" font-weight="${DISPLAY_WEIGHT}" fill="${COLORS.text}">${escapeXml(line)}</text>`
+        `<text x="${addrX}" y="${firstBaseline + i * (addrSize + 10)}" font-family="${FONT_DISPLAY}" font-size="${addrSize}" font-weight="${DISPLAY_WEIGHT}" fill="${COLORS.plaqueText}">${escapeXml(line)}</text>`
     )
     .join('\n  ')}
 </svg>`;

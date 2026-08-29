@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { BrandedUploadGenerator } from '../services/image/brandedUpload';
 import { db } from '../database/db';
+import { MarketReportNormalized } from '../../../shared/types';
 
 /**
  * Upload an image, get it back wrapped in the shop's header and footer.
@@ -13,6 +14,43 @@ import { db } from '../database/db';
  */
 
 const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
+
+/**
+ * The record shape History expects, with nothing claimed that a branded upload
+ * does not know.
+ *
+ * A parsed report carries rates, arrivals and confidence scores; an uploaded
+ * picture carries none of that, and inventing plausible-looking zeros would put
+ * numbers in the history that no report ever stated. Every field is empty and
+ * `sourceKind` says why, so the screens can render it as what it is.
+ */
+function brandedPlaceholder(): MarketReportNormalized {
+  const noRate = { extraBig: null, big: null, mukkal: null, medium: null, golta: null, golty: null, chopda: null, averageQuality: null };
+  const unknown = 'low' as const;
+  return {
+    sourceKind: 'branded-upload',
+    reportDate: new Date().toISOString().slice(0, 10),
+    reportDateDisplay: null,
+    market: null,
+    totalArrivals: null,
+    truckCount: null,
+    maharashtra: noRate,
+    vijayapura: { rate: null },
+    newOnions: { state: null, bagCount: null, rate: null, lotRate: null },
+    commodities: [],
+    salesStatus: null,
+    weather: null,
+    rateUnit: null,
+    additionalInformation: [],
+    confidence: {
+      overall: unknown, date: unknown, market: unknown, arrivals: unknown,
+      maharashtra: unknown, vijayapura: unknown, newOnions: unknown,
+      salesStatus: unknown, weather: unknown,
+    },
+    missingFields: [],
+    warnings: [],
+  };
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -71,8 +109,20 @@ router.post('/generate', acceptImage, async (req: Request, res: Response): Promi
     const settings = await db.getSettings();
     const out = await BrandedUploadGenerator.generate(req.file.buffer, settings);
 
+    // Saved alongside posters so History is one place, with sourceKind marking
+    // what it is: a branded upload carries no rates, so the screens that read
+    // maharashtra/arrivals must not treat it as a parsed report.
+    const record = await db.createOrUpdateReport({
+      rawMessage: req.file.originalname || 'Uploaded image',
+      extractedData: brandedPlaceholder(),
+      editedData: brandedPlaceholder(),
+      imagePath: out.urlPath,
+      reportDate: new Date().toISOString().slice(0, 10),
+    });
+
     res.json({
       success: true,
+      reportId: record.id,
       imageUrl: out.urlPath,
       width: out.width,
       height: out.height,

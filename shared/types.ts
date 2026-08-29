@@ -54,6 +54,12 @@ export interface ConfidenceScores {
 }
 
 export interface MarketReportNormalized {
+  /**
+   * What produced this record. Absent means a parsed rate report, which is
+   * every record written before branded uploads existed — so History must
+   * treat undefined as 'rates' rather than as missing data.
+   */
+  sourceKind?: 'rates' | 'branded-upload';
   reportDate: string | null; // ISO YYYY-MM-DD
   reportDateDisplay: string | null; // Formatted DD.MM.YYYY
   market: string | null;

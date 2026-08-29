@@ -133,7 +133,12 @@ export const App: React.FC = () => {
           />
         )}
 
-        {currentTab === 'brand' && <BrandImagePage settings={settings} />}
+        {currentTab === 'brand' && (
+          <BrandImagePage
+            settings={settings}
+            onSaved={() => api.getReports().then(setReports).catch(() => {})}
+          />
+        )}
 
         {currentTab === 'history' && (
           <HistoryPage
