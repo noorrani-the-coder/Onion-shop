@@ -11,6 +11,17 @@ export const ArrivalCountSchema = z.object({
   display: z.string()
 }).nullable();
 
+export const ReportRowSchema = z.object({
+  label: z.string().min(1),
+  rate: PriceRangeSchema
+});
+
+export const ReportSectionSchema = z.object({
+  title: z.string().min(1),
+  count: z.string().nullable().optional(),
+  rows: z.array(ReportRowSchema).default([])
+});
+
 export const MaharashtraRatesSchema = z.object({
   extraBig: PriceRangeSchema,
   big: PriceRangeSchema,
@@ -26,9 +37,17 @@ export const VijayapuraRatesSchema = z.object({
   rate: PriceRangeSchema
 });
 
+export const NewOnionGradeSchema = z.object({
+  label: z.string().min(1),
+  rate: PriceRangeSchema
+});
+
 export const NewOnionRatesSchema = z.object({
   state: z.string().nullable(),
   bagCount: z.string().nullable(),
+  // Defaulted, not required: reports stored before per-grade rows existed have
+  // no `grades` key, and they must keep loading rather than fail validation.
+  grades: z.array(NewOnionGradeSchema).default([]),
   rate: PriceRangeSchema,
   lotRate: PriceRangeSchema
 });
@@ -63,6 +82,10 @@ export const MarketReportNormalizedSchema = z.object({
   market: z.string().nullable(),
   totalArrivals: ArrivalCountSchema,
   truckCount: z.string().nullable(),
+
+  // Defaulted so reports stored before structure-driven sections existed keep
+  // validating; the renderer falls back to the named fields when it is empty.
+  sections: z.array(ReportSectionSchema).default([]),
 
   maharashtra: MaharashtraRatesSchema,
   vijayapura: VijayapuraRatesSchema,

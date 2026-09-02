@@ -3,7 +3,9 @@ import {
   CommodityItem,
   ConfidenceScores,
   MarketReportNormalized,
-  PriceRange
+  NewOnionGrade,
+  PriceRange,
+  ReportSection
 } from '../../../../shared/types';
 
 /**
@@ -12,7 +14,10 @@ import {
  */
 export function parsePriceRange(text: string | null | undefined): PriceRange | null {
   if (!text) return null;
-  const clean = text.replace(/[₹,\s*]|(?:Rs\.?|INR)/gi, ' ').trim();
+  // Commas are stripped, not blanked: "4,200-4,500" must read as 4200-4500. A
+  // comma turned into a space split the number and left the regex matching the
+  // "200" fragment, quoting a rate the message never carried.
+  const clean = text.replace(/(?<=\d),(?=\d)/g, '').replace(/[₹,\s*]|(?:Rs\.?|INR)/gi, ' ').trim();
 
   // Match range: e.g. 4300-4500, 4300/4500, 4000 to 4200, 4000 4200
   const rangeMatch = clean.match(/(\d{3,5})\s*(?:[-–—/]|to|\s)\s*(\d{3,5})/i);
@@ -40,6 +45,88 @@ export function parsePriceRange(text: string | null | undefined): PriceRange | n
   }
 
   return null;
+}
+
+/**
+ * Lines that carry report metadata rather than a priced row. These are the only
+ * words this function knows, and none of them is a section or grade name - they
+ * are the fixed furniture of every message (its date, its arrivals line, its
+ * sign-off), so recognising them costs nothing in flexibility.
+ */
+const META_LINE_RE =
+  /^\s*(?:date\b|dt\b|apmc\s*wise|arrivals?\b|total\s+(?:vehicles?|trucks?|bags?)\b|sales?\b|weather\b|rates?\s+for\b|note[s:]?\b|thanks\b|regards\b|good\s+(?:morning|evening)\b)/i;
+
+/** A label followed by a rate: "BIG. 4800-5000", "Medium Rs.4200-4800". */
+const ROW_LINE_RE =
+  /^\s*([A-Za-z][A-Za-z0-9 ()/.&'-]*?)\s*[:.\-|]*\s*(?:₹|Rs\.?|INR)?\s*((?:\d[\d,]*)\s*(?:[-–—/]|to)\s*(?:₹|Rs\.?|INR)?\s*(?:\d[\d,]*)|\d[\d,]*)\s*$/i;
+
+/**
+ * Reads the message as a sequence of titled sections, using shape alone.
+ *
+ * The rule is deliberately dumb, because a clever rule is one that has opinions
+ * about vocabulary: a line that ends in a rate is a row, any other line with
+ * letters in it opens a new section, and rows join whichever section is open.
+ * Nothing here matches "Maharashtra", "Vijayapura" or any grade name, so a new
+ * heading or a new grade needs no code change - and because a row can only ever
+ * join the heading above it, one section's price can never surface under
+ * another's title.
+ */
+export function parseSections(lines: string[]): ReportSection[] {
+  const sections: ReportSection[] = [];
+  let current: ReportSection | null = null;
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    // Bag/vehicle counts ("New onions 15,000+ bags") are part of a heading, not
+    // a price, so they must never be read as a row.
+    const isCount = /\b(?:bags?|vehicles?|trucks?|lorr(?:y|ies)|loads?|quintals?|kgs?|tonn?es?|boxes|lots?)\b/i.test(line);
+
+    if (META_LINE_RE.test(line)) {
+      // A sign-off closes whatever section was open; a stray "Sales ok" in the
+      // middle should not swallow the rows that follow it.
+      current = null;
+      continue;
+    }
+
+    const rowMatch = !isCount ? line.match(ROW_LINE_RE) : null;
+    if (rowMatch) {
+      const label = rowMatch[1].replace(/[.\s]+$/, '').trim();
+      const rate = parsePriceRange(rowMatch[2]);
+      if (label && rate) {
+        if (!current) {
+          // Rows before any heading still belong somewhere.
+          current = { title: 'RATES', rows: [] };
+          sections.push(current);
+        }
+        current.rows.push({ label: label.toUpperCase(), rate });
+        continue;
+      }
+    }
+
+    // Anything else with letters in it is a heading. A date or a bare number
+    // never reaches here, having been taken by META_LINE_RE or the row branch.
+    if (/[A-Za-z]{3,}/.test(line)) {
+      // A heading often carries its own arrival count ("New onions 15,000+
+      // bags"). Split it off so the title reads as a title and the count can be
+      // rendered as its own row.
+      const countMatch = line.match(/([0-9][0-9,.]*\s*\+?)\s*(bags?|vehicles?|trucks?|lorr(?:y|ies)|loads?|quintals?|kgs?|tonn?es?|boxes|lots?)\b/i);
+      const count = countMatch ? `${countMatch[1].replace(/\s+/g, '')} ${countMatch[2].toLowerCase()}` : null;
+      const title = line
+        .replace(countMatch ? countMatch[0] : '', ' ')
+        .replace(/[:\-|]+\s*$/, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      if (title) {
+        current = { title: title.toUpperCase(), count, rows: [] };
+        sections.push(current);
+      }
+    }
+  }
+
+  // A heading with nothing under it is noise, not a section.
+  return sections.filter(s => s.rows.length > 0);
 }
 
 /**
@@ -209,7 +296,8 @@ export function parseMarketReportDeterministic(rawMessage: string): {
         averageQuality: null
       },
       vijayapura: { rate: null },
-      newOnions: { state: null, bagCount: null, rate: null, lotRate: null },
+      sections: [],
+      newOnions: { state: null, bagCount: null, grades: [], rate: null, lotRate: null },
       commodities: [],
       salesStatus: null,
       weather: null,
@@ -358,10 +446,27 @@ export function parseMarketReportDeterministic(rawMessage: string): {
   let newOnionRate: PriceRange | null = null;
   let newOnionLotRate: PriceRange | null = null;
 
+  const newOnionGrades: NewOnionGrade[] = [];
+
   const newOnionHeaderIdx = lines.findIndex(l => /new\s*onion|new\s*karnataka/i.test(l));
   if (newOnionHeaderIdx >= 0) {
-    const subLines = lines.slice(newOnionHeaderIdx, newOnionHeaderIdx + 6);
-    const subText = subLines.join(' ');
+    const headerLine = lines[newOnionHeaderIdx];
+
+    // The section runs to the next section heading or trailing note, not for a
+    // fixed number of lines: traders quote as many grades as they have that
+    // day, and a window of six silently dropped the rest.
+    const isSectionEnd = (l: string) =>
+      /^\s*(?:sales|weather|rates?\s+for|note|thanks|regards)\b/i.test(l) ||
+      /\b(?:maharashtra|vijayapura|nashik|bellary|hubli)\b/i.test(l);
+
+    let sectionEnd = lines.length;
+    for (let i = newOnionHeaderIdx + 1; i < lines.length; i++) {
+      if (isSectionEnd(lines[i])) { sectionEnd = i; break; }
+    }
+    // Body only. The header carries the bag count ("15,000+ bags") and reading
+    // a rate off it produced a phantom quote of 0.
+    const bodyLines = lines.slice(newOnionHeaderIdx + 1, sectionEnd);
+    const subText = [headerLine, ...bodyLines].join(' ');
 
     if (/karnataka/i.test(subText)) newOnionState = 'Karnataka';
 
@@ -371,26 +476,46 @@ export function parseMarketReportDeterministic(rawMessage: string): {
       newOnionBags = bagMatch[1].replace(/\s+/g, '') + ' bags';
     }
 
-    // Rates
-    const lotLine = subLines.find(l => /lot|1-2\s*lot/i.test(l));
-    if (lotLine) {
-      newOnionLotRate = parsePriceRange(lotLine);
+    // A grade row is a name followed by a rate: "Medium. 4200-4800". The name
+    // is required, so a bare bag-count or total line can never become a grade.
+    // The currency group is optional but must be allowed: WhatsApp messages
+    // routinely write "Medium. Rs.4200-4800" or "Medium. ₹4200-4800", and without
+    // it the row simply failed to match and the grade was dropped.
+    const GRADE_RE = /^\s*([A-Za-z][A-Za-z ()/.&-]*?)\s*[:.\-|]*\s*(?:₹|Rs\.?|INR)?\s*((?:\d[\d,]*)\s*(?:[-–—/]|to)\s*(?:₹|Rs\.?|INR)?\s*(?:\d[\d,]*)|\d[\d,]*)\s*$/i;
+
+    for (const line of bodyLines) {
+      if (/\bbags?\b/i.test(line)) continue;
+
+      // The lot rate is its own field and is usually written with a leading
+      // number ("1-2 lot 3500-3800"), which no grade label ever has - so it is
+      // matched before GRADE_RE rather than through it.
+      if (/\blot\b/i.test(line)) {
+        const lotRate = parsePriceRange(line.replace(/^\s*[\d\s-]*lot\b/i, ' '));
+        if (lotRate) newOnionLotRate = lotRate;
+        continue;
+      }
+
+      const m = line.match(GRADE_RE);
+      if (!m) continue;
+      const label = m[1].replace(/[.\s]+$/, '').trim();
+      if (!label || /^(?:total|sales|weather)$/i.test(label)) continue;
+      const rate = parsePriceRange(m[2]);
+      if (!rate) continue;
+
+      newOnionGrades.push({ label: label.toUpperCase(), rate });
     }
 
-    const rateLine = subLines.find(l => (!l.includes('lot') && (l.includes('Rates') || /^\d{4}/.test(l.trim()) || l.includes('1600'))));
-    if (rateLine) {
-      newOnionRate = parsePriceRange(rateLine);
-    } else {
-      // Look for any price range in new onion section not assigned to lot
-      for (const sl of subLines) {
-        if (!/lot/i.test(sl)) {
-          const pr = parsePriceRange(sl);
-          if (pr && (!newOnionLotRate || pr.display !== newOnionLotRate.display)) {
-            newOnionRate = pr;
-            break;
-          }
-        }
-      }
+    // A single unlabelled rate ("Rates. 4000-4600") stays in `rate` so the
+    // one-row layout and every stored report keep working unchanged.
+    if (newOnionGrades.length === 1 && /^rates?$/i.test(newOnionGrades[0].label)) {
+      newOnionRate = newOnionGrades[0].rate;
+      newOnionGrades.length = 0;
+    }
+
+    // Last resort for a section that quoted a bare rate with no label at all.
+    if (newOnionGrades.length === 0 && !newOnionRate) {
+      const rateLine = bodyLines.find(l => !/\blot\b/i.test(l) && !/\bbags?\b/i.test(l) && parsePriceRange(l));
+      if (rateLine) newOnionRate = parsePriceRange(rateLine);
     }
   }
 
@@ -490,7 +615,7 @@ export function parseMarketReportDeterministic(rawMessage: string): {
   const missingFields: string[] = [];
   const warnings: string[] = [];
 
-  const hasAnyRates = mhRates.big || mhRates.medium || mhRates.extraBig || vijayapuraRate || newOnionRate || commodities.length > 0;
+  const hasAnyRates = mhRates.big || mhRates.medium || mhRates.extraBig || vijayapuraRate || newOnionRate || newOnionGrades.length > 0 || commodities.length > 0;
 
   const confidence: ConfidenceScores = {
     overall: 'high',
@@ -499,7 +624,7 @@ export function parseMarketReportDeterministic(rawMessage: string): {
     arrivals: arrivals ? 'high' : 'medium',
     maharashtra: (mhRates.big || mhRates.medium || mhRates.extraBig) ? 'high' : 'low',
     vijayapura: vijayapuraRate ? 'high' : 'medium',
-    newOnions: (newOnionRate || newOnionBags) ? 'high' : 'medium',
+    newOnions: (newOnionRate || newOnionGrades.length > 0 || newOnionBags) ? 'high' : 'medium',
     commodities: commodities.length > 0 ? 'high' : 'medium',
     salesStatus: salesStatus ? 'high' : 'medium',
     weather: weather ? 'high' : 'medium'
@@ -526,11 +651,16 @@ export function parseMarketReportDeterministic(rawMessage: string): {
     market,
     totalArrivals: arrivals,
     truckCount: trucks,
+    // Structure-driven view of the whole message. The named fields below stay
+    // populated so stored reports and the existing screens keep working.
+    sections: parseSections(lines),
+
     maharashtra: mhRates,
     vijayapura: { rate: vijayapuraRate },
     newOnions: {
       state: newOnionState,
       bagCount: newOnionBags,
+      grades: newOnionGrades,
       rate: newOnionRate,
       lotRate: newOnionLotRate
     },
