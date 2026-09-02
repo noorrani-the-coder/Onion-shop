@@ -9,6 +9,34 @@ export interface ArrivalCount {
   display: string;
 }
 
+/**
+ * One label/rate line inside a section ("BIG QUALITY  4800-5000").
+ */
+export interface ReportRow {
+  label: string;
+  rate: PriceRange | null;
+}
+
+/**
+ * A titled block of rows, exactly as the message laid it out.
+ *
+ * Sections are read by SHAPE, not by name: a line carrying no rate opens a
+ * section, and the label/rate lines under it belong to it. Nothing in the code
+ * knows the word "Maharashtra" - so a message that says "Nashik", "Bangalore"
+ * or a heading invented next season renders without a code change, and a rate
+ * can never be attributed to a section it was not written under.
+ */
+export interface ReportSection {
+  title: string;
+  /**
+   * An arrival count written on the heading itself ("New onions 15,000+ bags").
+   * Kept apart from the title so the heading stays a heading and the count can
+   * be shown as its own row.
+   */
+  count?: string | null;
+  rows: ReportRow[];
+}
+
 export interface MaharashtraRates {
   extraBig: PriceRange | null;
   big: PriceRange | null;
@@ -24,9 +52,24 @@ export interface VijayapuraRates {
   rate: PriceRange | null;
 }
 
+/**
+ * One grade row under NEW ONIONS ("Medium 4200-4800", "Pickle size 1800-3000").
+ *
+ * The grades traders quote here are not a fixed set the way the Maharashtra
+ * ones are - a message may carry medium/golta/golty one day and add pickle
+ * size the next - so they are kept as a list and rendered in the order the
+ * message listed them, rather than mapped onto named fields.
+ */
+export interface NewOnionGrade {
+  label: string;
+  rate: PriceRange | null;
+}
+
 export interface NewOnionRates {
   state: string | null;
   bagCount: string | null;
+  /** Per-grade rows, in message order. Empty when the message quoted a single rate. */
+  grades: NewOnionGrade[];
   rate: PriceRange | null;
   lotRate: PriceRange | null;
 }
@@ -65,6 +108,13 @@ export interface MarketReportNormalized {
   market: string | null;
   totalArrivals: ArrivalCount | null;
   truckCount: string | null;
+
+  /**
+   * Every section the message contained, in message order. This is the source
+   * of truth for rendering; the named fields below are kept so reports stored
+   * before sections existed still load and render.
+   */
+  sections: ReportSection[];
 
   maharashtra: MaharashtraRates;
   vijayapura: VijayapuraRates;

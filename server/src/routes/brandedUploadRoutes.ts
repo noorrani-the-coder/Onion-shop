@@ -30,6 +30,7 @@ function brandedPlaceholder(): MarketReportNormalized {
   const unknown = 'low' as const;
   return {
     sourceKind: 'branded-upload',
+    sections: [],
     reportDate: new Date().toISOString().slice(0, 10),
     reportDateDisplay: null,
     market: null,
@@ -37,7 +38,7 @@ function brandedPlaceholder(): MarketReportNormalized {
     truckCount: null,
     maharashtra: noRate,
     vijayapura: { rate: null },
-    newOnions: { state: null, bagCount: null, rate: null, lotRate: null },
+    newOnions: { state: null, bagCount: null, grades: [], rate: null, lotRate: null },
     commodities: [],
     salesStatus: null,
     weather: null,

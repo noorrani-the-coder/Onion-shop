@@ -67,6 +67,18 @@ CRITICAL RULES:
    "truckCount" is the BARE COUNT ONLY — never include the word "trucks"/"lorries".
    From "325+ Trucks" return "325+", NOT "325+ Trucks". The renderer adds the word itself.
 3. Do not confuse dates with prices.
+3b. "sections" is the PRIMARY output and what gets rendered. Copy EVERY heading in the
+   message verbatim into "title" (do not rename, translate or normalise it - "Bangalore
+   onions" stays "Bangalore onions"), put an arrival count written on that heading into
+   "count", and put each label+rate line beneath it into "rows" in the order written.
+   A rate must go under the heading it was written beneath - never move one between
+   sections. Also fill the named fields below when a section clearly matches one, for
+   backwards compatibility, but "sections" must always be complete on its own.
+3a. NEW ONIONS may list its own grade rows (e.g. "Medium 4200-4800", "Golta 3800-4000",
+   "Pickle size 1800-3000"). Put EVERY such row in "grades", in the order listed, with the
+   label exactly as written. Use "rate" ONLY for a single unlabelled rate ("Rates 4000-4600");
+   when "grades" is non-empty, "rate" must be null. Never read a rate off the bag-count line
+   ("15,000+ bags" is an arrival count, not a price).
 4. Normalize dates to ISO "YYYY-MM-DD" and display "DD.MM.YYYY".
 5. Map Onion varieties accurately:
    - Extra Big / EB -> maharashtra.extraBig
@@ -107,9 +119,19 @@ OUTPUT JSON SCHEMA:
   "vijayapura": {
     "rate": { "min": number, "max": number, "display": string } | null
   },
+  "sections": [
+    {
+      "title": string,
+      "count": string | null,
+      "rows": [ { "label": string, "rate": { "min": number, "max": number, "display": string } | null } ]
+    }
+  ],
   "newOnions": {
     "state": string | null,
     "bagCount": string | null,
+    "grades": [
+      { "label": string, "rate": { "min": number, "max": number, "display": string } | null }
+    ],
     "rate": { "min": number, "max": number, "display": string } | null,
     "lotRate": { "min": number, "max": number, "display": string } | null
   },

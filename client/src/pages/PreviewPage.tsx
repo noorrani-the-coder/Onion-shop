@@ -211,7 +211,17 @@ export const PreviewPage: React.FC<PreviewPageProps> = ({
                 </div>
               )}
 
-              {report.editedData.newOnions.rate?.display && (
+              {(report.editedData.newOnions.grades || [])
+                .filter(g => g.label && g.rate?.display)
+                .map((g, i) => (
+                  <div key={i} className="flex items-center justify-between py-1.5">
+                    <span className="text-slate-400">New Onions &middot; {g.label}:</span>
+                    <span className="font-bold text-amber-400 font-mono">₹ {g.rate!.display}</span>
+                  </div>
+                ))}
+
+              {!(report.editedData.newOnions.grades || []).some(g => g.label && g.rate?.display) &&
+                report.editedData.newOnions.rate?.display && (
                 <div className="flex items-center justify-between py-1.5">
                   <span className="text-slate-400">New Onions Rate:</span>
                   <span className="font-bold text-amber-400 font-mono">₹ {report.editedData.newOnions.rate.display}</span>

@@ -11,7 +11,7 @@ import {
   Trash2,
   Tag
 } from 'lucide-react';
-import type { MarketReportNormalized, PriceRange } from '@shared/types';
+import type { MarketReportNormalized, PriceRange, ReportSection } from '@shared/types';
 import { ConfidenceBadge } from '../components/ConfidenceBadge';
 import { api } from '../services/api';
 
@@ -71,6 +71,84 @@ export const VerifyPage: React.FC<VerifyPageProps> = ({
 
       return updated;
     });
+  };
+
+  // Same text -> PriceRange rule the fixed fields use, lifted out so the
+  // dynamic new-onion grade rows parse identically.
+  const toPriceRange = (displayVal: string): PriceRange | null => {
+    const clean = displayVal.trim();
+    if (!clean) return null;
+    const m = clean.match(/(\d+)\s*[-/to\s]+\s*(\d+)/i);
+    if (m) return { min: parseInt(m[1], 10), max: parseInt(m[2], 10), display: clean };
+    const single = parseInt(clean.replace(/[^\d]/g, ''), 10);
+    return { min: isNaN(single) ? 0 : single, max: isNaN(single) ? 0 : single, display: clean };
+  };
+
+  const sections = data.sections || [];
+
+  const mutateSections = (fn: (secs: ReportSection[]) => ReportSection[]) =>
+    setData(prev => ({ ...prev, sections: fn([...(prev.sections || [])]) }));
+
+  const updateSectionTitle = (si: number, title: string) =>
+    mutateSections(secs => { secs[si] = { ...secs[si], title }; return secs; });
+
+  const updateSectionCount = (si: number, count: string) =>
+    mutateSections(secs => { secs[si] = { ...secs[si], count: count || null }; return secs; });
+
+  const removeSection = (si: number) => mutateSections(secs => secs.filter((_, i) => i !== si));
+
+  const addSection = () => mutateSections(secs => [...secs, { title: '', count: null, rows: [] }]);
+
+  const updateRow = (si: number, ri: number, patch: { label?: string; rate?: string }) =>
+    mutateSections(secs => {
+      const rows = [...secs[si].rows];
+      rows[ri] = {
+        ...rows[ri],
+        ...(patch.label !== undefined ? { label: patch.label } : {}),
+        ...(patch.rate !== undefined ? { rate: toPriceRange(patch.rate) } : {})
+      };
+      secs[si] = { ...secs[si], rows };
+      return secs;
+    });
+
+  const addRow = (si: number) =>
+    mutateSections(secs => {
+      secs[si] = { ...secs[si], rows: [...secs[si].rows, { label: '', rate: null }] };
+      return secs;
+    });
+
+  const removeRow = (si: number, ri: number) =>
+    mutateSections(secs => {
+      secs[si] = { ...secs[si], rows: secs[si].rows.filter((_, i) => i !== ri) };
+      return secs;
+    });
+
+  const newOnionGrades = data.newOnions.grades || [];
+
+  const updateGrade = (idx: number, patch: { label?: string; rate?: string }) => {
+    setData(prev => {
+      const grades = [...(prev.newOnions.grades || [])];
+      grades[idx] = {
+        ...grades[idx],
+        ...(patch.label !== undefined ? { label: patch.label } : {}),
+        ...(patch.rate !== undefined ? { rate: toPriceRange(patch.rate) } : {})
+      };
+      return { ...prev, newOnions: { ...prev.newOnions, grades } };
+    });
+  };
+
+  const addGrade = () => {
+    setData(prev => ({
+      ...prev,
+      newOnions: { ...prev.newOnions, grades: [...(prev.newOnions.grades || []), { label: '', rate: null }] }
+    }));
+  };
+
+  const removeGrade = (idx: number) => {
+    setData(prev => ({
+      ...prev,
+      newOnions: { ...prev.newOnions, grades: (prev.newOnions.grades || []).filter((_, i) => i !== idx) }
+    }));
   };
 
   const handleAddNote = () => {
@@ -329,6 +407,95 @@ export const VerifyPage: React.FC<VerifyPageProps> = ({
             </div>
           </div>
 
+          {/* SECTION 2b: PARSED SECTIONS (structure-driven)
+              These are what the poster actually renders. Titles and rows come
+              straight from the message, so this is where a mis-read heading or
+              a mis-read rate gets corrected before anything is published. */}
+          {sections.length > 0 && (
+            <div className="glass-card rounded-2xl sm:rounded-3xl p-4 sm:p-5 md:p-6 space-y-4 border-slate-800">
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+                <h2 className="text-xs sm:text-sm md:text-base font-bold text-white flex items-center gap-2">
+                  <span className="text-base">📋</span>
+                  Sections on the poster
+                  <span className="font-normal text-slate-500">({sections.length})</span>
+                </h2>
+                <button
+                  type="button"
+                  onClick={addSection}
+                  className="text-[11px] sm:text-xs font-semibold text-emerald-400 hover:text-emerald-300 px-2 py-1 rounded-lg border border-emerald-800/60"
+                >
+                  + Section
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {sections.map((sec, si) => (
+                  <div key={si} className="rounded-xl border border-slate-800 p-3 space-y-2 bg-slate-950/40">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={sec.title}
+                        onChange={(e) => updateSectionTitle(si, e.target.value)}
+                        placeholder="Section heading"
+                        className="flex-1 min-w-0 bg-slate-900/90 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-white border border-slate-700 focus:outline-none focus:border-emerald-500"
+                      />
+                      <input
+                        type="text"
+                        value={sec.count || ''}
+                        onChange={(e) => updateSectionCount(si, e.target.value)}
+                        placeholder="15,000+ bags"
+                        className="w-28 sm:w-36 shrink-0 bg-slate-900/90 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-emerald-400 border border-slate-700 focus:outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeSection(si)}
+                        aria-label={`Remove ${sec.title || 'section'}`}
+                        className="shrink-0 text-slate-500 hover:text-rose-400 px-2 py-2 rounded-lg"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {sec.rows.map((row, ri) => (
+                      <div key={ri} className="flex items-center gap-2 pl-2">
+                        <input
+                          type="text"
+                          value={row.label}
+                          onChange={(e) => updateRow(si, ri, { label: e.target.value })}
+                          placeholder="Grade"
+                          className="flex-1 min-w-0 bg-slate-900/90 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-white border border-slate-700 focus:outline-none focus:border-emerald-500"
+                        />
+                        <input
+                          type="text"
+                          value={row.rate?.display || ''}
+                          onChange={(e) => updateRow(si, ri, { rate: e.target.value })}
+                          placeholder="4200-4800"
+                          className="w-28 sm:w-36 shrink-0 bg-slate-900/90 rounded-xl px-3 py-2 text-xs sm:text-sm font-mono font-bold text-amber-400 border border-slate-700 focus:outline-none focus:border-emerald-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeRow(si, ri)}
+                          aria-label={`Remove ${row.label || 'row'}`}
+                          className="shrink-0 text-slate-500 hover:text-rose-400 px-2 py-2 rounded-lg"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={() => addRow(si)}
+                      className="ml-2 text-[11px] sm:text-xs font-semibold text-slate-400 hover:text-emerald-300"
+                    >
+                      + Add row
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* SECTION 3: MAHARASHTRA ONION RATES */}
           <div className="glass-card rounded-2xl sm:rounded-3xl p-4 sm:p-5 md:p-6 space-y-4 border-slate-800">
             <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
@@ -479,14 +646,20 @@ export const VerifyPage: React.FC<VerifyPageProps> = ({
               </div>
 
               <div>
-                <label className="text-[11px] sm:text-xs font-semibold text-slate-300 block mb-1">New Onion Rate</label>
+                <label className="text-[11px] sm:text-xs font-semibold text-slate-300 block mb-1">
+                  New Onion Rate
+                  {newOnionGrades.length > 0 && (
+                    <span className="ml-1 font-normal text-slate-500">(unused &mdash; grades below)</span>
+                  )}
+                </label>
                 <input
                   type="text"
                   inputMode="text"
                   value={data.newOnions.rate?.display || ''}
                   onChange={(e) => handlePriceChange('newOnions', 'rate', e.target.value)}
                   placeholder="1600-3400"
-                  className="w-full bg-slate-900/90 rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-mono font-bold text-amber-400 border border-slate-700 focus:outline-none focus:border-emerald-500"
+                  disabled={newOnionGrades.length > 0}
+                  className="w-full bg-slate-900/90 rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-mono font-bold text-amber-400 border border-slate-700 focus:outline-none focus:border-emerald-500 disabled:opacity-40"
                 />
               </div>
 
@@ -501,6 +674,58 @@ export const VerifyPage: React.FC<VerifyPageProps> = ({
                   className="w-full bg-slate-900/90 rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-mono font-bold text-white border border-slate-700 focus:outline-none focus:border-emerald-500"
                 />
               </div>
+            </div>
+
+            {/* New-onion grade rows. Not a fixed set: whatever grades the
+                message quoted, in its order, each editable before it ships. */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] sm:text-xs font-semibold text-slate-300">
+                  New Onion Grades
+                  <span className="ml-1 font-normal text-slate-500">({newOnionGrades.length})</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={addGrade}
+                  className="text-[11px] sm:text-xs font-semibold text-emerald-400 hover:text-emerald-300 px-2 py-1 rounded-lg border border-emerald-800/60"
+                >
+                  + Add grade
+                </button>
+              </div>
+
+              {newOnionGrades.length === 0 ? (
+                <p className="text-[11px] sm:text-xs text-slate-500">
+                  None found &mdash; the single rate above will be used.
+                </p>
+              ) : (
+                newOnionGrades.map((g, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={g.label}
+                      onChange={(e) => updateGrade(i, { label: e.target.value })}
+                      placeholder="Medium"
+                      className="flex-1 min-w-0 bg-slate-900/90 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-white border border-slate-700 focus:outline-none focus:border-emerald-500"
+                    />
+                    <input
+                      type="text"
+                      inputMode="text"
+                      value={g.rate?.display || ''}
+                      onChange={(e) => updateGrade(i, { rate: e.target.value })}
+                      placeholder="4200-4800"
+                      className="w-28 sm:w-36 shrink-0 bg-slate-900/90 rounded-xl px-3 py-2 text-xs sm:text-sm font-mono font-bold text-amber-400 border border-slate-700 focus:outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeGrade(i)}
+                      aria-label={`Remove ${g.label || 'grade'}`}
+                      className="shrink-0 text-slate-500 hover:text-rose-400 px-2 py-2 rounded-lg"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

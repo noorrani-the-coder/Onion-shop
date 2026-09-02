@@ -418,10 +418,41 @@ export class PosterGenerator {
     if (mh.chopda?.display) mhItems.push({ label: 'CHOPDA', rate: mh.chopda.display, icon: 'onion' });
     if (mh.averageQuality?.display) mhItems.push({ label: 'AVERAGE QUALITY', rate: mh.averageQuality.display, icon: 'onion' });
 
+    // Structure-driven sections, when the message produced them. The first
+    // section fills the main table and the rest stack below it. Nothing in this
+    // file matches a section name, so a heading the parser has never seen is
+    // laid out exactly like a familiar one.
+    const parsedSections = (report.sections || []).filter(s => s.title && (s.rows || []).length > 0);
+    const useSections = parsedSections.length > 0;
+    const mainSection = useSections ? parsedSections[0] : null;
+    const stackedSections = useSections ? parsedSections.slice(1) : [];
+    if (mainSection) {
+      mhItems.length = 0;
+      mainSection.rows.forEach(r => {
+        if (r.rate?.display) mhItems.push({ label: r.label.toUpperCase(), rate: r.rate.display, icon: 'onion' });
+      });
+    }
+    const mainTitle = mainSection ? mainSection.title : 'MAHARASHTRA ONIONS';
+
+    // Card geometry, shared by the height maths and the drawing loop - they must
+    // agree or the canvas is sized for a different poster than the one drawn.
+    const SEC_HEADER_H = 52;
+    const SEC_ROW_H = 65;
+    const SEC_ROW_GAP = 4;
+    const SEC_PAD = 10;
+    const SEC_SALES_H = 34;
+    const SECTION_PALETTE = [theme.vjHeaderColor, theme.newOnionHeaderColor, theme.mhHeaderColor, theme.vegHeaderColor];
+    const sectionCardH = (section: { count?: string | null; rows: unknown[] }, isLast: boolean) =>
+      SEC_HEADER_H +
+      (section.rows.length + (section.count ? 1 : 0)) * (SEC_ROW_H + SEC_ROW_GAP) +
+      SEC_PAD +
+      (isLast ? SEC_SALES_H : 0);
+
     const commodities = (report.commodities || []).filter(c => c.name && (c.rate?.display || c.variety));
     const hasMhRates = mhItems.length > 0;
     const hasVJ = !!report.vijayapura?.rate?.display;
-    const hasNewOnion = !!(report.newOnions?.rate?.display || report.newOnions?.bagCount || report.newOnions?.lotRate?.display);
+    const newOnionGrades = (report.newOnions?.grades || []).filter(g => g.label && g.rate?.display);
+    const hasNewOnion = !!(report.newOnions?.rate?.display || report.newOnions?.bagCount || report.newOnions?.lotRate?.display || newOnionGrades.length > 0);
     const hasCommodities = commodities.length > 0;
 
     if (!hasMhRates && !hasVJ && !hasNewOnion && !hasCommodities) {
@@ -461,6 +492,10 @@ export class PosterGenerator {
         report.newOnions?.rate?.display || '1600-3400',
         report.newOnions?.lotRate?.display || '',
       ].map(t => ({ text: t, family: FONT_HEADING, weight: 400 })),
+      ...parsedSections.map(sec => ({ text: sec.title, family: FONT_HEADING, weight: HEADING_WEIGHT })),
+      ...parsedSections.flatMap(sec => sec.rows.map(r => ({ text: labelDisplay(r.label.toUpperCase()), family: FONT_LABEL, weight: LABEL_WEIGHT }))),
+      ...parsedSections.flatMap(sec => sec.rows.map(r => ({ text: r.rate?.display || '', family: FONT_HEADING, weight: 400 }))),
+      ...parsedSections.filter(sec => sec.count).map(sec => ({ text: sec.count as string, family: FONT_HEADING, weight: 400 })),
       ...[
         'MAHARASHTRA ONIONS', 'VIJAYAPURA ONIONS', 'NEW ONIONS',
         'VEGETABLE & COMMODITY RATES',
@@ -513,14 +548,21 @@ export class PosterGenerator {
     // type on the poster gets the tallest rows. Capped so a short report does
     // not turn into a few enormous bands.
     const MH_ROW_MIN = 56;
+    // Must match the rows built below exactly, or the canvas is sized for a
+    // different table than the one that gets drawn.
     const noRowCount =
       (report.newOnions?.state || report.newOnions?.bagCount ? 1 : 0) +
-      1 +
+      (newOnionGrades.length > 0 ? newOnionGrades.length : 1) +
       (report.newOnions?.lotRate?.display ? 1 : 0);
     const vegRowHEarly = commodities.length > 6 ? 62 : 75;
+    const sectionsStackedH = stackedSections.reduce(
+      (sum, sec, i) => sum + sectionCardH(sec, i === stackedSections.length - 1) + 8,
+      0
+    );
     const stackedBelowH =
-      (hasVJ ? 52 + 72 + 10 + 8 : 0) +
-      (hasNewOnion ? 52 + noRowCount * (65 + 4) + 10 + 34 + 8 : 0) +
+      (useSections ? sectionsStackedH : 0) +
+      (!useSections && hasVJ ? 52 + 72 + 10 + 8 : 0) +
+      (!useSections && hasNewOnion ? 52 + noRowCount * (65 + 4) + 10 + 34 + 8 : 0) +
       (72 + 12) +
       (hasCommodities ? 55 + commodities.length * (vegRowHEarly + 4) + 10 + 12 : 0);
     // What the poster needs if every stretchable row sits at its floor. Only
@@ -550,7 +592,7 @@ export class PosterGenerator {
     const mhSectionSvg = hasMhRates ? `
       <g id="mh-table" transform="translate(${LEFT_X}, ${TABLES_TOP})">
         <rect x="0" y="0" width="${LEFT_W}" height="${mhTableH}" rx="18" fill="#fffdf6" stroke="${CARD_BORDER}" stroke-width="2" />
-        ${sectionHeader(0, 0, LEFT_W, mhHeaderH, theme.mhHeaderColor, 'MAHARASHTRA ONIONS', 'onion')}
+        ${sectionHeader(0, 0, LEFT_W, mhHeaderH, theme.mhHeaderColor, mainTitle, 'onion')}
         ${mhRowsSvg}
         <rect x="0" y="${mhTableH - mhFooterH}" width="${LEFT_W}" height="${mhFooterH}" rx="12" fill="${theme.footerBarColor}" />
         <rect x="0" y="${mhTableH - mhFooterH}" width="${LEFT_W}" height="${mhFooterH / 2}" fill="${theme.footerBarColor}" />
@@ -566,7 +608,46 @@ export class PosterGenerator {
     let rightColSvg = '';
     const rightInteriorW = RIGHT_W - 32;
 
-    if (hasVJ) {
+    // Structure-driven cards. Each stacked section is drawn the same way, its
+    // colour taken from a palette by position, so a heading nobody anticipated
+    // renders exactly like a familiar one - no name appears in this code.
+    if (useSections) {
+      stackedSections.forEach((section, si) => {
+        const isLast = si === stackedSections.length - 1;
+        const rows: { label: string; value: string }[] = [];
+        // Labelled 'ARRIVALS', not with the section's own title - the card
+        // header already says which section this is.
+        if (section.count) rows.push({ label: 'ARRIVALS', value: section.count });
+        section.rows.forEach(r => {
+          if (r.rate?.display) rows.push({ label: r.label.toUpperCase(), value: r.rate.display });
+        });
+        if (rows.length === 0) return;
+
+        const cardH = sectionCardH(section, isLast);
+        const salesLabel = `SALES ${salesText.toUpperCase()}`;
+        const salesSize = fitSize(salesLabel, FONT_TABLE, 700, 32, 20, RIGHT_W - 32);
+        const dividerX = tableDividerX(rows, rightInteriorW, SEC_ROW_H);
+        const sizes = tableTypeSizes(rows, rightInteriorW, SEC_ROW_H, dividerX);
+
+        let rowsSvg = '';
+        rows.forEach((r, i) => {
+          const y = SEC_HEADER_H + 8 + i * (SEC_ROW_H + SEC_ROW_GAP);
+          rowsSvg += heritageRow(16, y, rightInteriorW, SEC_ROW_H, 'onion', r.label, null, r.value, i % 2 === 1, dividerX, sizes);
+        });
+
+        rightColSvg += `
+        <g id="section-card-${si}" transform="translate(${RIGHT_X}, ${rightCursorY})">
+          <rect x="0" y="0" width="${RIGHT_W}" height="${cardH}" rx="16" fill="#fffdf6" stroke="${CARD_BORDER}" stroke-width="2" />
+          ${sectionHeader(0, 0, RIGHT_W, SEC_HEADER_H, SECTION_PALETTE[si % SECTION_PALETTE.length], section.title, 'sprout')}
+          ${rowsSvg}
+          ${isLast ? `<text x="16" y="${cardH - 11}" font-family="${FONT_TABLE}" font-size="${salesSize}" font-weight="700" fill="${RATE_TEXT_COLOR}" letter-spacing="0.2">${escapeXml(salesLabel)}</text>` : ''}
+        </g>
+      `;
+        rightCursorY += cardH + 8;
+      });
+    }
+
+    if (!useSections && hasVJ) {
       const vjHeaderH = 52;
       const vjRowH = 72;
       const vjH = vjHeaderH + vjRowH + 10;
@@ -582,13 +663,19 @@ export class PosterGenerator {
       rightCursorY += vjH + 8;
     }
 
-    if (hasNewOnion) {
+    if (!useSections && hasNewOnion) {
       const noHeaderH = 52;
       const noRows: { label: string; value: string }[] = [];
       if (report.newOnions?.state || report.newOnions?.bagCount) {
         noRows.push({ label: (report.newOnions?.state || 'KARNATAKA').toUpperCase(), value: report.newOnions?.bagCount || '—' });
       }
-      noRows.push({ label: 'RATES', value: report.newOnions?.rate?.display || '1600-3400' });
+      // Per-grade rows when the message quoted them, otherwise the single
+      // RATES row the older one-rate reports carry.
+      if (newOnionGrades.length > 0) {
+        newOnionGrades.forEach(g => noRows.push({ label: g.label.toUpperCase(), value: g.rate!.display }));
+      } else {
+        noRows.push({ label: 'RATES', value: report.newOnions?.rate?.display || '1600-3400' });
+      }
       if (report.newOnions?.lotRate?.display) {
         noRows.push({ label: '1-2 LOT', value: report.newOnions.lotRate.display });
       }
