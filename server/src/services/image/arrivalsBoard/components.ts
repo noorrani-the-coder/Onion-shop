@@ -234,8 +234,8 @@ export function renderProductRow(row: RowPlan, columns: ColumnPlan, index: numbe
     // is always as wide as the column, at the cost of trimming a little off the
     // top and bottom on a short row (or the sides on a tall one). Aspect ratio
     // is kept; nothing is stretched.
-    const boxW = VISUAL_W - 16;
-    const boxH = row.h - 14;
+    const boxW = VISUAL_W - 24;
+    const boxH = row.h - 20;
     const boxX = columns.visualX + (VISUAL_W - boxW) / 2;
     const boxY = midY - boxH / 2;
     visual =
