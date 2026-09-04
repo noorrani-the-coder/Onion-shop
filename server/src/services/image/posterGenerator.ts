@@ -175,7 +175,12 @@ const CANVAS_H_MIN = 1920;
 // emoji/icon accents with real photography. Any subset may be present; each
 // is handled independently and falls back to the icon-based look if absent.
 const ASSETS_DIR = path.join(SERVER_ASSETS_DIR, 'photos');
-const ONION_PHOTO = path.join(ASSETS_DIR, 'onion.png');
+// Prefer the arrivals-board's transparent onion cutout (shared so both outputs
+// carry the same onion), then the legacy full-frame photo, then the icon.
+const ONION_PHOTO = [
+  path.join(ASSETS_DIR, 'commodities', 'onion.png'),
+  path.join(ASSETS_DIR, 'onion.png'),
+].find(p => fs.existsSync(p)) || path.join(ASSETS_DIR, 'onion.png');
 const TRUCK_PHOTO = path.join(ASSETS_DIR, 'truck.png');
 const WAREHOUSE_PHOTO = path.join(ASSETS_DIR, 'warehouse.png');
 const LOGO_PHOTO = path.join(ASSETS_DIR, 'logo.png');
@@ -976,8 +981,11 @@ export class PosterGenerator {
     const compositeOps: sharp.OverlayOptions[] = [];
 
     if (hasOnionPhoto) {
-      const ONION_W = 200;
-      const ONION_H = Math.round((ONION_W * 1024) / 1536);
+      // Height-locked so the corner footprint stays put whatever the source
+      // aspect ratio is; width follows from the file's own metadata.
+      const onionMeta = await sharp(ONION_PHOTO).metadata();
+      const ONION_H = 138;
+      const ONION_W = Math.round(ONION_H * ((onionMeta.width || 1536) / (onionMeta.height || 1024)));
       const onionBuf = await sharp(ONION_PHOTO).resize(ONION_W, ONION_H, { fit: 'contain' }).toBuffer();
       const onionBufFlipped = await sharp(ONION_PHOTO).flop().resize(ONION_W, ONION_H, { fit: 'contain' }).toBuffer();
       compositeOps.push({ input: onionBuf, left: 6, top: 16 });
