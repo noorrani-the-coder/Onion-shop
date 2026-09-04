@@ -5,6 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { ArrivalsBoardData, ShopSettings } from '../../../../../shared/types';
 import { ASSETS_DIR, PUBLIC_DIR as SERVER_PUBLIC_DIR } from '../../../paths';
 import { planBoard, BoardPlan, CANVAS_W, MARGIN, CONTENT_W, BORDER } from './layout';
+import { commodityIconName } from '../icons';
+import { warmCommodityPhotos } from '../commodityPhotos';
 import {
   BoardTheme,
   DEFAULT_THEME,
@@ -57,7 +59,7 @@ export function buildBoardSvg(
     })
     .join('\n');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${plan.canvasW}" height="${plan.canvasH}" viewBox="0 0 ${plan.canvasW} ${plan.canvasH}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${plan.canvasW}" height="${plan.canvasH}" viewBox="0 0 ${plan.canvasW} ${plan.canvasH}">
   <rect x="0" y="0" width="${plan.canvasW}" height="${plan.canvasH}" fill="${theme.paper}" />
   ${renderHeader(plan, data.committeeName, data.location, theme)}
   ${renderDateBar(plan, data.reportDateDisplay || '', data.weekday, theme)}
@@ -100,6 +102,12 @@ export class ArrivalsBoardGenerator {
     // the same arrangement the rate poster uses.
     const logoPhoto = path.join(ASSETS_DIR, 'photos', 'logo.png');
     const hasLogo = Boolean(settings) && fs.existsSync(logoPhoto);
+
+    // Trim the blank margin off any commodity photos this board will use, so
+    // the components can drop them straight into the cell.
+    await warmCommodityPhotos(
+      data.markets.flatMap(m => m.products.map(p => commodityIconName(p.name)))
+    );
 
     const plan = await planBoard(data);
     const svg = buildBoardSvg(data, plan, settings, hasLogo, theme);
