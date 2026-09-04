@@ -66,7 +66,14 @@ export async function warmCommodityPhotos(iconKeys: string[]): Promise<void> {
       try {
         // `trim` drops a uniform border of any colour or of transparency, so
         // this handles both a real cutout and a photo left on a flat backdrop.
-        const trimmed = await sharp(hit.file).trim({ threshold: 18 }).png().toBuffer();
+        // Then cap the pixel size: these render at ~40-220px, and a data URI is
+        // repeated once per row it appears on, so a multi-megabyte source would
+        // blow past librsvg's SVG buffer limit.
+        const trimmed = await sharp(hit.file)
+          .trim({ threshold: 18 })
+          .resize(384, 384, { fit: 'inside', withoutEnlargement: true })
+          .png({ compressionLevel: 9 })
+          .toBuffer();
         cache.set(key, `data:image/png;base64,${trimmed.toString('base64')}`);
       } catch {
         // Corrupt or unreadable — fall back to the bytes on disk.
