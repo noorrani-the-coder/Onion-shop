@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ASSETS_DIR as SERVER_ASSETS_DIR, PUBLIC_DIR as SERVER_PUBLIC_DIR } from '../../paths';
 import { warmTextMetrics, widthOf, fitSize, truncateToWidth } from './textMetrics';
 import { renderIcon, commodityIconName, weatherIconName } from './icons';
+import { commodityPhotoDataUri, warmCommodityPhotos } from './commodityPhotos';
 
 const PUBLIC_DIR = SERVER_PUBLIC_DIR;
 const POSTERS_DIR = path.join(PUBLIC_DIR, 'posters');
@@ -175,7 +176,12 @@ const CANVAS_H_MIN = 1920;
 // emoji/icon accents with real photography. Any subset may be present; each
 // is handled independently and falls back to the icon-based look if absent.
 const ASSETS_DIR = path.join(SERVER_ASSETS_DIR, 'photos');
-const ONION_PHOTO = path.join(ASSETS_DIR, 'onion.png');
+// Prefer the arrivals-board's transparent onion cutout (shared so both outputs
+// carry the same onion), then the legacy full-frame photo, then the icon.
+const ONION_PHOTO = [
+  path.join(ASSETS_DIR, 'commodities', 'onion.png'),
+  path.join(ASSETS_DIR, 'onion.png'),
+].find(p => fs.existsSync(p)) || path.join(ASSETS_DIR, 'onion.png');
 const TRUCK_PHOTO = path.join(ASSETS_DIR, 'truck.png');
 const WAREHOUSE_PHOTO = path.join(ASSETS_DIR, 'warehouse.png');
 const LOGO_PHOTO = path.join(ASSETS_DIR, 'logo.png');
@@ -331,6 +337,14 @@ function heritageRow(x: number, y: number, width: number, height: number, icon: 
   const iconBoxSize = height - 14;
   const labelStartX = rowLabelStartX(height);
 
+  // A real commodity photo fills the icon chip when one is available (onion on
+  // every Maharashtra row, plus potato/garlic/ginger/... on the veg rows);
+  // otherwise the vector icon is drawn as before.
+  const rowPhoto = commodityPhotoDataUri(icon);
+  const iconMarkup = rowPhoto
+    ? `<image x="9" y="9" width="${iconBoxSize - 4}" height="${iconBoxSize - 4}" preserveAspectRatio="xMidYMid meet" xlink:href="${rowPhoto}" />`
+    : renderIcon(icon, 7 + (iconBoxSize - Math.min(26, iconBoxSize - 6)) / 2, 7 + (iconBoxSize - Math.min(26, iconBoxSize - 6)) / 2, Math.min(26, iconBoxSize - 6));
+
   const baseLabelSize = rowBaseLabelSize(height);
   const baseValueSize = rowBaseValueSize(height);
   const minLabelSize = MIN_LABEL_SIZE;
@@ -357,7 +371,7 @@ function heritageRow(x: number, y: number, width: number, height: number, icon: 
     <g transform="translate(${x}, ${y})">
       <rect x="0" y="0" width="${width}" height="${height}" fill="${rowBg}" />
       <rect x="7" y="7" width="${iconBoxSize}" height="${iconBoxSize}" rx="8" fill="rgba(15,23,42,0.06)" />
-      ${renderIcon(icon, 7 + (iconBoxSize - Math.min(26, iconBoxSize - 6)) / 2, 7 + (iconBoxSize - Math.min(26, iconBoxSize - 6)) / 2, Math.min(26, iconBoxSize - 6))}
+      ${iconMarkup}
       <text x="${labelStartX}" y="${subText ? height / 2 - 5 : height / 2 + 10}" font-family="${FONT_LABEL}" font-size="${labelFontSize}" font-weight="${LABEL_WEIGHT}" fill="${LABEL_TEXT_COLOR}" letter-spacing="0.2">${escapeXml(labelText)}</text>
       ${subText ? `<text x="${labelStartX}" y="${height / 2 + 19}" font-family="${FONT_TABLE}" font-size="${subFontSize}" font-weight="700" fill="#475569">${escapeXml(subText)}</text>` : ''}
       <line x1="${dividerX}" y1="8" x2="${dividerX}" y2="${height - 8}" stroke="rgba(15,23,42,0.15)" stroke-width="1.5" />
@@ -399,6 +413,12 @@ export class PosterGenerator {
     const hasTruckPhoto = fs.existsSync(TRUCK_PHOTO);
     const hasWarehousePhoto = fs.existsSync(WAREHOUSE_PHOTO);
     const hasLogoPhoto = fs.existsSync(LOGO_PHOTO);
+
+    // Trim + cache any commodity photos the table rows will use, so the sync
+    // heritageRow() can drop them straight into the icon chip.
+    await warmCommodityPhotos([
+      'onion', 'potato', 'tomato', 'garlic', 'ginger', 'chilli', 'lemon', 'carrot', 'cabbage',
+    ]);
 
     const dateDisplay = report.reportDateDisplay || report.reportDate || new Date().toISOString().split('T')[0];
     const dayName = getDayName(report.reportDate);
@@ -842,7 +862,7 @@ export class PosterGenerator {
     const subtitleFontSize = fitSize('ONION MARKET REPORT', FONT_HEADING, HEADING_WEIGHT, 40, 24, TITLE_MAX_W);
 
     const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CANVAS_W} ${CANVAS_H}" width="${CANVAS_W}" height="${CANVAS_H}">
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${CANVAS_W} ${CANVAS_H}" width="${CANVAS_W}" height="${CANVAS_H}">
       <defs>
         <linearGradient id="paperGrad" x1="0%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" stop-color="${theme.paperBgStart}" />
@@ -976,8 +996,11 @@ export class PosterGenerator {
     const compositeOps: sharp.OverlayOptions[] = [];
 
     if (hasOnionPhoto) {
-      const ONION_W = 200;
-      const ONION_H = Math.round((ONION_W * 1024) / 1536);
+      // Height-locked so the corner footprint stays put whatever the source
+      // aspect ratio is; width follows from the file's own metadata.
+      const onionMeta = await sharp(ONION_PHOTO).metadata();
+      const ONION_H = 138;
+      const ONION_W = Math.round(ONION_H * ((onionMeta.width || 1536) / (onionMeta.height || 1024)));
       const onionBuf = await sharp(ONION_PHOTO).resize(ONION_W, ONION_H, { fit: 'contain' }).toBuffer();
       const onionBufFlipped = await sharp(ONION_PHOTO).flop().resize(ONION_W, ONION_H, { fit: 'contain' }).toBuffer();
       compositeOps.push({ input: onionBuf, left: 6, top: 16 });
