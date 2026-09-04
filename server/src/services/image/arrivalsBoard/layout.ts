@@ -50,7 +50,7 @@ export const SIZE = {
   productNameMin: 58,
   arrival: 88,
   arrivalMin: 62,
-  unit: 34,
+  unit: 44,
   vehicles: 74,
   vehiclesMin: 55,
   vehiclesLabel: 26,
@@ -86,11 +86,11 @@ export const BORDER = 4;
 // Column geometry inside a row. The visual column is sized so the commodity
 // photo reads as the row's subject, not a bullet. Widening it past this starts
 // to squeeze the product name on a tall few-row board.
-export const VISUAL_W = 232;
+export const VISUAL_W = 208;
 export const TRUCK_W = 88;
 export const COL_PAD = 12;
-const MIN_UNIT_W = 104;
-const MIN_NAME_W = 190;
+const MIN_UNIT_W = 132;
+const MIN_NAME_W = 168;
 // A guaranteed gap between the product name and the arrival pill, reserved in
 // the column budget rather than left to chance. Without it, a tall few-row
 // board squeezes the name column down to MIN_NAME_W and the name ends up
