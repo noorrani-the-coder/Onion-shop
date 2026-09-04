@@ -229,17 +229,18 @@ export function renderProductRow(row: RowPlan, columns: ColumnPlan, index: numbe
   const photo = commodityPhotoDataUri(icon);
   let visual: string;
   if (photo) {
-    // The photo gets the whole cell — almost the full column width and the row
-    // height bar a small margin. `meet` preserves the cutout's aspect ratio, so
-    // a landscape shot fills the width and a portrait one fills the height,
-    // neither is stretched.
-    const boxW = VISUAL_W - 4;
-    const boxH = row.h - 8;
-    const boxX = columns.visualX + (VISUAL_W - boxW) / 2;
+    // The photo fills the whole visual cell, edge to edge. `slice` scales it to
+    // cover the box and clips the overflow to the box bounds — so the picture
+    // is always as wide as the column, at the cost of trimming a little off the
+    // top and bottom on a short row (or the sides on a tall one). Aspect ratio
+    // is kept; nothing is stretched.
+    const boxW = VISUAL_W;
+    const boxH = row.h - 2;
+    const boxX = columns.visualX;
     const boxY = midY - boxH / 2;
     visual =
       `<image x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" ` +
-      `preserveAspectRatio="xMidYMid meet" xlink:href="${photo}" />`;
+      `preserveAspectRatio="xMidYMid slice" xlink:href="${photo}" />`;
   } else {
     // The vector icon is square; it fills most of the row's height.
     const visualSize = Math.min(VISUAL_W - 8, Math.round(row.h * 0.9));

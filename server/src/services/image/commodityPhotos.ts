@@ -66,7 +66,7 @@ export async function warmCommodityPhotos(iconKeys: string[]): Promise<void> {
       try {
         // `trim` drops a uniform border of any colour or of transparency, so
         // this handles both a real cutout and a photo left on a flat backdrop.
-        const trimmed = await sharp(hit.file).trim({ threshold: 10 }).png().toBuffer();
+        const trimmed = await sharp(hit.file).trim({ threshold: 18 }).png().toBuffer();
         cache.set(key, `data:image/png;base64,${trimmed.toString('base64')}`);
       } catch {
         // Corrupt or unreadable — fall back to the bytes on disk.
