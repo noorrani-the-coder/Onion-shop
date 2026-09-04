@@ -86,7 +86,7 @@ export const BORDER = 4;
 // Column geometry inside a row. The visual column is sized so the commodity
 // photo reads as the row's subject, not a bullet. Widening it past this starts
 // to squeeze the product name on a tall few-row board.
-export const VISUAL_W = 258;
+export const VISUAL_W = 232;
 export const TRUCK_W = 88;
 export const COL_PAD = 12;
 const MIN_UNIT_W = 132;
