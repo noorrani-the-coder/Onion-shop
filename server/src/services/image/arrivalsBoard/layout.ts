@@ -83,12 +83,20 @@ export const BRANDING_H = 430;
 export const SECTION_GAP = 16;
 export const BORDER = 4;
 
-// Column geometry inside a row.
-export const VISUAL_W = 140;
+// Column geometry inside a row. The visual column is sized so the commodity
+// photo reads as the row's subject, not a bullet. Widening it past this starts
+// to squeeze the product name on a tall few-row board.
+export const VISUAL_W = 232;
 export const TRUCK_W = 88;
 export const COL_PAD = 12;
 const MIN_UNIT_W = 104;
 const MIN_NAME_W = 190;
+// A guaranteed gap between the product name and the arrival pill, reserved in
+// the column budget rather than left to chance. Without it, a tall few-row
+// board squeezes the name column down to MIN_NAME_W and the name ends up
+// pressed against the pill; charging the gap here makes the numbers yield a
+// few pixels for it, the same order the hierarchy already yields in.
+const NAME_GUTTER = 22;
 // Absolute floor for the vehicle count, used only when the alternative is an
 // undersized product name. Still larger than any number on the rate poster.
 const VEHICLES_HARD_MIN = 48;
@@ -214,7 +222,7 @@ function fitColumnSizes(products: ArrivalProduct[], rowH: number): ColumnPlan {
   const vehicleWidthAt = (size: number) =>
     TRUCK_W + 10 + Math.max(widest(vehicles, FONT_DISPLAY, DISPLAY_WEIGHT, size), vehLabelW) + COL_PAD * 2;
   const nameWidthWith = (aSize: number, vSize: number) =>
-    CONTENT_W - VISUAL_W - arrivalWidthAt(aSize) - unitW - vehicleWidthAt(vSize);
+    CONTENT_W - VISUAL_W - NAME_GUTTER - arrivalWidthAt(aSize) - unitW - vehicleWidthAt(vSize);
 
   // Clamped, not just decremented: a 2px step from 56 would otherwise land on
   // 54 and quietly break the floor it was meant to respect.
@@ -237,11 +245,11 @@ function fitColumnSizes(products: ArrivalProduct[], rowH: number): ColumnPlan {
   const vehicleW = vehicleWidthAt(vehicleSize);
   // Whatever is genuinely left. Floored only so a pathological board still
   // produces a drawable grid rather than negative geometry.
-  const nameW = Math.max(80, CONTENT_W - VISUAL_W - arrivalW - unitW - vehicleW);
+  const nameW = Math.max(80, CONTENT_W - VISUAL_W - NAME_GUTTER - arrivalW - unitW - vehicleW);
 
   const visualX = MARGIN;
   const nameX = visualX + VISUAL_W;
-  const arrivalX = nameX + nameW;
+  const arrivalX = nameX + nameW + NAME_GUTTER;
   const unitX = arrivalX + arrivalW;
   const vehicleX = unitX + unitW;
 

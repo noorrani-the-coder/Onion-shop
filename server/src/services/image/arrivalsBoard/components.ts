@@ -1,4 +1,5 @@
 import { renderIcon, commodityIconName } from '../icons';
+import { commodityPhotoDataUri } from '../commodityPhotos';
 import { widthOf, fitSize, wrapToWidth } from '../textMetrics';
 import {
   BoardPlan,
@@ -221,8 +222,29 @@ export function renderVehicleCell(row: RowPlan, columns: ColumnPlan, theme: Boar
 export function renderProductRow(row: RowPlan, columns: ColumnPlan, index: number, theme: BoardTheme): string {
   const bg = index % 2 === 0 ? theme.rowA : theme.rowB;
   const midY = row.y + row.h / 2;
-  const visualSize = Math.min(VISUAL_W - 18, Math.round(row.h * 0.62));
   const icon = commodityIconName(row.product.name);
+
+  // A real photo when the shop has supplied one for this commodity, the vector
+  // icon otherwise.
+  const photo = commodityPhotoDataUri(icon);
+  let visual: string;
+  if (photo) {
+    // The photo gets the whole cell — almost the full column width and the row
+    // height bar a small margin. `meet` preserves the cutout's aspect ratio, so
+    // a landscape shot fills the width and a portrait one fills the height,
+    // neither is stretched.
+    const boxW = VISUAL_W - 4;
+    const boxH = row.h - 8;
+    const boxX = columns.visualX + (VISUAL_W - boxW) / 2;
+    const boxY = midY - boxH / 2;
+    visual =
+      `<image x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" ` +
+      `preserveAspectRatio="xMidYMid meet" xlink:href="${photo}" />`;
+  } else {
+    // The vector icon is square; it fills most of the row's height.
+    const visualSize = Math.min(VISUAL_W - 8, Math.round(row.h * 0.9));
+    visual = renderIcon(icon, columns.visualX + (VISUAL_W - visualSize) / 2, midY - visualSize / 2, visualSize);
+  }
 
   // A single line sits on the row's centre; two lines straddle it.
   const firstBaseline =
@@ -234,7 +256,7 @@ export function renderProductRow(row: RowPlan, columns: ColumnPlan, index: numbe
   return `
     <g id="product-row">
       <rect x="${MARGIN}" y="${row.y}" width="${CONTENT_W}" height="${row.h}" fill="${bg}" />
-      ${renderIcon(icon, columns.visualX + (VISUAL_W - visualSize) / 2, midY - visualSize / 2, visualSize)}
+      ${visual}
       ${nameSvg}
       <rect x="${columns.arrivalX}" y="${row.y + 16}" width="${columns.arrivalW}" height="${row.h - 32}" rx="12" fill="${theme.arrivalBg}" />
       ${text(row.product.arrival, columns.arrivalX + columns.arrivalW / 2, midY + columns.arrivalSize / 3, columns.arrivalSize, theme.arrivalText, {
