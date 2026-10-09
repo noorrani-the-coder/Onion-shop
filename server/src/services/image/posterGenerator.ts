@@ -251,7 +251,7 @@ function rowBaseValueSize(height: number): number {
  */
 const RATE_STROKE_W = 2;
 
-const MIN_LABEL_SIZE = 22;
+const MIN_LABEL_SIZE = 28;
 // A label is allowed to shrink to MIN_LABEL_SIZE to fit, but the pill column
 // gives way before it drops below this — small beats clipped for a grade name.
 const LABEL_COMFORT_SIZE = 32;
@@ -355,7 +355,30 @@ function heritageRow(x: number, y: number, width: number, height: number, icon: 
   const labelFontSize = forced
     ? forced.labelSize
     : fitSize(labelUpper, FONT_LABEL, LABEL_WEIGHT, baseLabelSize, minLabelSize, labelAvailW);
-  const labelText = truncateToWidth(labelUpper, FONT_LABEL, LABEL_WEIGHT, labelFontSize, labelAvailW);
+  // A label that will not fit on one line at a readable size wraps onto two
+  // lines rather than being cut short - every word of the data stays on the poster.
+  let labelLines = [truncateToWidth(labelUpper, FONT_LABEL, LABEL_WEIGHT, labelFontSize, labelAvailW)];
+  let labelLineSize = labelFontSize;
+  if (!sublabel && !forced && widthOf(labelUpper, FONT_LABEL, LABEL_WEIGHT, labelFontSize) > labelAvailW) {
+    const words = labelUpper.split(/\s+/);
+    let best: string[] | null = null;
+    let bestW = Infinity;
+    for (let k = 1; k < words.length; k++) {
+      const a = words.slice(0, k).join(' ');
+      const b = words.slice(k).join(' ');
+      const w = Math.max(widthOf(a, FONT_LABEL, LABEL_WEIGHT, 100), widthOf(b, FONT_LABEL, LABEL_WEIGHT, 100));
+      if (w < bestW) { bestW = w; best = [a, b]; }
+    }
+    if (best) {
+      const lineMax = Math.floor((height - 14) / 2);
+      labelLineSize = Math.min(
+        lineMax,
+        fitSize(best[0], FONT_LABEL, LABEL_WEIGHT, lineMax, 18, labelAvailW),
+        fitSize(best[1], FONT_LABEL, LABEL_WEIGHT, lineMax, 18, labelAvailW)
+      );
+      labelLines = best.map(l => truncateToWidth(l, FONT_LABEL, LABEL_WEIGHT, labelLineSize, labelAvailW));
+    }
+  }
 
   const rateWidth = width - dividerX - PILL_GAP;
   const valueAvailW = rateWidth - PILL_PAD * 2 - RATE_STROKE_W * 2;
@@ -372,7 +395,7 @@ function heritageRow(x: number, y: number, width: number, height: number, icon: 
       <rect x="0" y="0" width="${width}" height="${height}" fill="${rowBg}" />
       <rect x="7" y="7" width="${iconBoxSize}" height="${iconBoxSize}" rx="8" fill="rgba(15,23,42,0.06)" />
       ${iconMarkup}
-      <text x="${labelStartX}" y="${subText ? height / 2 - 5 : height / 2 + 10}" font-family="${FONT_LABEL}" font-size="${labelFontSize}" font-weight="${LABEL_WEIGHT}" fill="${LABEL_TEXT_COLOR}" letter-spacing="0.2">${escapeXml(labelText)}</text>
+      ${labelLines.map((l, li) => `<text x="${labelStartX}" y="${labelLines.length > 1 ? height / 2 + (li === 0 ? -4 : labelLineSize - 2) : subText ? height / 2 - 5 : height / 2 + 10}" font-family="${FONT_LABEL}" font-size="${labelLines.length > 1 ? labelLineSize : labelFontSize}" font-weight="${LABEL_WEIGHT}" fill="${LABEL_TEXT_COLOR}" stroke="${LABEL_TEXT_COLOR}" stroke-width="0.9" paint-order="stroke" stroke-linejoin="round" letter-spacing="0.2">${escapeXml(l)}</text>`).join('')}
       ${subText ? `<text x="${labelStartX}" y="${height / 2 + 19}" font-family="${FONT_TABLE}" font-size="${subFontSize}" font-weight="700" fill="#475569">${escapeXml(subText)}</text>` : ''}
       <line x1="${dividerX}" y1="8" x2="${dividerX}" y2="${height - 8}" stroke="rgba(15,23,42,0.15)" stroke-width="1.5" />
       <rect x="${dividerX + PILL_GAP}" y="6" width="${rateWidth}" height="${height - 12}" rx="10" fill="${RATE_BG_COLOR}" stroke="${RATE_BORDER_COLOR}" stroke-width="2.5" />
@@ -647,12 +670,11 @@ export class PosterGenerator {
         const salesLabel = `SALES ${salesText.toUpperCase()}`;
         const salesSize = fitSize(salesLabel, FONT_TABLE, 700, 32, 20, RIGHT_W - 32);
         const dividerX = tableDividerX(rows, rightInteriorW, SEC_ROW_H);
-        const sizes = tableTypeSizes(rows, rightInteriorW, SEC_ROW_H, dividerX);
-
+        
         let rowsSvg = '';
         rows.forEach((r, i) => {
           const y = SEC_HEADER_H + 8 + i * (SEC_ROW_H + SEC_ROW_GAP);
-          rowsSvg += heritageRow(16, y, rightInteriorW, SEC_ROW_H, 'onion', r.label, null, r.value, i % 2 === 1, dividerX, sizes);
+          rowsSvg += heritageRow(16, y, rightInteriorW, SEC_ROW_H, 'onion', r.label, null, r.value, i % 2 === 1, dividerX);
         });
 
         rightColSvg += `
