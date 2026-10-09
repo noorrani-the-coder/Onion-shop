@@ -58,7 +58,7 @@ const META_LINE_RE =
 
 /** A label followed by a rate: "BIG. 4800-5000", "Medium Rs.4200-4800". */
 const ROW_LINE_RE =
-  /^\s*([A-Za-z][A-Za-z0-9 ()/.&'-]*?)\s*[:.\-|]*\s*(?:₹|Rs\.?|INR)?\s*((?:\d[\d,]*)\s*(?:[-–—/]|to)\s*(?:₹|Rs\.?|INR)?\s*(?:\d[\d,]*)|\d[\d,]*)\s*$/i;
+  /^\s*([A-Za-z0-9][A-Za-z0-9 ()/.&'%-]*?)\s*[:.\-|]*\s*(?:₹|Rs\.?|INR)?\s*((?:\d[\d,]*)\s*(?:[-–—/]|to)\s*(?:₹|Rs\.?|INR)?\s*(?:\d[\d,]*)|\d[\d,]*)\s*$/i;
 
 /**
  * Reads the message as a sequence of titled sections, using shape alone.
@@ -94,7 +94,9 @@ export function parseSections(lines: string[]): ReportSection[] {
     if (rowMatch) {
       const label = rowMatch[1].replace(/[.\s]+$/, '').trim();
       const rate = parsePriceRange(rowMatch[2]);
-      if (label && rate) {
+      // A label may open with a digit ("60% of new onions kaccha Rates"), but it
+      // must still be words: a bare date or number is never a grade.
+      if (label && rate && /[A-Za-z]{3,}/.test(label)) {
         if (!current) {
           // Rows before any heading still belong somewhere.
           current = { title: 'RATES', rows: [] };
