@@ -120,7 +120,9 @@ export const ShopSettingsSchema = z.object({
   footerTagline: z.string(),
   logoUrl: z.string().nullable().optional(),
   themeId: z.enum(['emerald-classic', 'sapphire-modern', 'ruby-wholesale', 'golden-harvest']),
-  customAccentColor: z.string().optional()
+  customAccentColor: z.string().optional(),
+  layoutId: z.enum(['classic', 'large-print']).optional(),
+  posterSize: z.enum(['9:16', '1:1', '16:9']).optional()
 });
 
 export const ExtractRequestSchema = z.object({

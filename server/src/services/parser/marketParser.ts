@@ -121,8 +121,16 @@ export function parseSections(lines: string[]): ReportSection[] {
         .replace(/\s{2,}/g, ' ')
         .trim();
       if (title) {
-        current = { title: title.toUpperCase(), count, rows: [] };
-        sections.push(current);
+        if (current && current.rows.length === 0) {
+          // Two headings in a row ("Karnataka" / "New onions 90,000+ bags") are one
+          // heading in two parts: keep both rather than letting the second replace
+          // the first, and keep whichever carried an arrival count.
+          current.title = `${current.title.replace(/[\s.:\-|]+$/, '')} - ${title.toUpperCase()}`;
+          current.count = count || current.count;
+        } else {
+          current = { title: title.toUpperCase(), count, rows: [] };
+          sections.push(current);
+        }
       }
     }
   }
