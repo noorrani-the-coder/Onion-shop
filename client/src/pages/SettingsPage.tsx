@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Store, Save, CheckCircle2, Phone, MessageSquare, MapPin, Award, Palette, Sparkles } from 'lucide-react';
 import { ShopSettings } from '@shared/types';
 import { api } from '../services/api';
+import { PosterLayoutPicker } from '../components/PosterLayoutPicker';
 
 interface SettingsPageProps {
   settings: ShopSettings | null;
@@ -295,6 +296,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSettings
               );
             })}
           </div>
+        </div>
+
+        {/* Poster layout & size */}
+        <div className="glass-card rounded-3xl p-5 md:p-6 space-y-4 border-slate-800">
+          <h2 className="text-sm md:text-base font-bold text-white flex items-center gap-2 border-b border-slate-800/80 pb-3">
+            <Sparkles className="w-4 h-4 text-emerald-400" />
+            Poster Layout &amp; Size
+          </h2>
+          <PosterLayoutPicker />
         </div>
 
         {/* Save CTA */}

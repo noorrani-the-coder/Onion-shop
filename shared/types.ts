@@ -132,6 +132,10 @@ export interface MarketReportNormalized {
   warnings: string[];
 }
 
+/** Canvas shapes for the large-print poster (width:height). */
+export type PosterSize = '9:16' | '1:1' | '16:9';
+export type PosterLayout = 'classic' | 'large-print';
+
 export interface ShopSettings {
   shopName: string;
   proprietorName: string;
@@ -145,6 +149,9 @@ export interface ShopSettings {
   logoUrl?: string | null;
   themeId: 'emerald-classic' | 'sapphire-modern' | 'ruby-wholesale' | 'golden-harvest';
   customAccentColor?: string;
+  /** Not stored with the shop profile; chosen per poster by the client. */
+  layoutId?: PosterLayout;
+  posterSize?: PosterSize;
 }
 
 export interface ReportRecord {

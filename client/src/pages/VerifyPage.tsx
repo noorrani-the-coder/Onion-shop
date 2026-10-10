@@ -1,3 +1,4 @@
+import { loadPosterPrefs, PosterLayoutPicker } from '../components/PosterLayoutPicker';
 import React, { useState } from 'react';
 import {
   Sparkles,
@@ -231,7 +232,8 @@ export const VerifyPage: React.FC<VerifyPageProps> = ({
       const res = await api.generatePoster({
         rawMessage,
         extractedData: initialData,
-        data
+        data,
+        settings: loadPosterPrefs()
       });
       onPosterGenerated(res);
     } catch (err: any) {
@@ -923,6 +925,12 @@ export const VerifyPage: React.FC<VerifyPageProps> = ({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Poster layout & size, chosen per poster */}
+      <div className="glass-card rounded-2xl p-4 border-slate-800 space-y-2">
+        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Poster layout &amp; size</div>
+        <PosterLayoutPicker />
       </div>
 
       {/* Floating Bottom Action Bar */}

@@ -1,3 +1,4 @@
+import { LargePosterGenerator } from '../services/image/largePoster';
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { aiExtractor } from '../services/ai/aiExtractor';
@@ -159,7 +160,9 @@ router.post('/generate', async (req: Request, res: Response): Promise<void> => {
     };
 
     // Render deterministic PNG
-    const { fileName, absolutePath, urlPath } = await PosterGenerator.generatePoster(data, effectiveSettings);
+    const { fileName, absolutePath, urlPath } = effectiveSettings.layoutId === 'large-print'
+      ? await LargePosterGenerator.generate(data, effectiveSettings, effectiveSettings.posterSize || '9:16')
+      : await PosterGenerator.generatePoster(data, effectiveSettings);
     // Stored against the record so it survives the next deploy wiping the disk.
     const publishedUrl = await publishImage(fileName);
 
